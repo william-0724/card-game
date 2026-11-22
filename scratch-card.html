@@ -215,6 +215,125 @@
     text-align: center; white-space: nowrap;
   }
   .album-cell:not(.lit) .cell-count { color: #c4b4a2; background: rgba(255, 253, 247, .55); }
+  .album-cell.lit { cursor: pointer; }
+
+  /* ===== 3D 卡片查看 ===== */
+  #viewer {
+    position: fixed; inset: 0; z-index: 40;
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+    background: rgba(40, 30, 22, .58);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    perspective: 1000px;
+  }
+  #viewer.open { display: flex; }
+  #viewerStage {
+    perspective: 1000px;
+    transform-style: preserve-3d;
+    animation: viewerFloat 5.5s ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes viewerFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-9px); }
+  }
+  #viewerCard {
+    width: min(300px, 76vw, 52vh);
+    aspect-ratio: .78;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 5.5% 5.5% 4.5%;
+    border-radius: 20px;
+    transform: rotateX(0deg) rotateY(0deg);
+    transform-style: preserve-3d;
+    transition: transform .5s ease, box-shadow .3s ease;
+    background: linear-gradient(160deg, #fffdf8, var(--vc-soft, #fff4e0));
+    border: 1px solid var(--vc-border, #e7d6c2);
+    box-shadow: 0 30px 50px -24px rgba(70, 45, 25, .7), 0 0 32px -6px var(--vc-glow, #ffd9a0);
+    -webkit-user-select: none; user-select: none;
+    cursor: grab;
+    touch-action: none;
+    text-align: center;
+  }
+  #viewerCard[data-rarity="mythic"] {
+    border-color: #ffd166;
+    box-shadow: 0 30px 50px -24px rgba(70, 45, 25, .7), 0 0 0 2px rgba(255, 209, 102, .7), 0 0 34px rgba(255, 190, 70, .55);
+  }
+  .vc-top {
+    transform: translateZ(8px);
+    font-size: clamp(8px, 2.6vmin, 10px);
+    letter-spacing: .12em;
+    color: var(--vc-accent, #a2917f);
+    opacity: .82;
+  }
+  .vc-art-wrap {
+    position: relative;
+    width: 58%; aspect-ratio: 1;
+    margin: 4% auto 5%;
+    display: flex; align-items: center; justify-content: center;
+    transform: translateZ(24px);
+  }
+  .vc-art-wrap::before {
+    content: "";
+    position: absolute; inset: -14%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--vc-glow, #ffd9a0) 0%, transparent 68%);
+    opacity: .55;
+  }
+  #viewerArt {
+    position: relative;
+    width: 100%; height: 100%;
+    display: block;
+    image-rendering: pixelated;
+  }
+  .vc-phrase {
+    transform: translateZ(16px);
+    max-width: 92%;
+    font-size: clamp(13px, 5vmin, 19px);
+    font-weight: 600; line-height: 1.5;
+    color: var(--vc-ink, #66503f);
+    letter-spacing: .02em;
+    overflow-wrap: anywhere;
+  }
+  .vc-tag {
+    transform: translateZ(18px);
+    margin-top: 4%;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--vc-border, #dccbb7);
+    font-size: clamp(9px, 2.8vmin, 11px);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .vc-foot {
+    transform: translateZ(6px);
+    margin-top: auto; padding-top: 3%;
+    font-size: clamp(7.5px, 2.3vmin, 9px);
+    letter-spacing: .1em;
+    color: var(--vc-ink, #66503f);
+    opacity: .45;
+  }
+  .viewer-hint {
+    position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    color: rgba(255, 250, 242, .75);
+    font-size: 10px; letter-spacing: .08em;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  @media (max-height: 520px) {
+    .vc-phrase { font-size: 14px; }
+    .vc-art-wrap { width: 54%; margin: 3% auto 4%; }
+    .vc-tag { margin-top: 3%; }
+  }
+  @media (max-height: 420px) {
+    #viewerCard { width: min(240px, 68vw, 58vh); }
+    .vc-top { font-size: 8px; }
+    .vc-art-wrap { width: 50%; margin: 2% auto 3%; }
+    .vc-phrase { font-size: 13px; }
+    .vc-tag { margin-top: 2.5%; padding: 2px 10px; font-size: 9px; }
+    .vc-foot { font-size: 7px; padding-top: 2%; }
+  }
   @media (max-width: 560px) {
     #gallery { width: calc(100vw - 20px); padding: 7px 8px 7px 13px; gap: 8px; }
     .album-bar-title { font-size: 8.5px; }
@@ -266,6 +385,18 @@
       </div>
       <div id="albumBody"></div>
     </div>
+  </div>
+  <div id="viewer" aria-hidden="true">
+    <div id="viewerStage">
+      <div id="viewerCard" role="img" aria-label="3D 卡片，可拖动查看">
+        <div class="vc-top">今日份 · 小确幸</div>
+        <div class="vc-art-wrap"><canvas id="viewerArt"></canvas></div>
+        <div class="vc-phrase" id="viewerPhrase"></div>
+        <div class="vc-tag" id="viewerTag">普通</div>
+        <div class="vc-foot">把烦恼轻轻刮掉</div>
+      </div>
+    </div>
+    <div class="viewer-hint">拖动卡片查看 · 点击空白处关闭</div>
   </div>
   <canvas id="fx"></canvas>
 
@@ -441,6 +572,8 @@
   const galleryCount = $('galleryCount');
   const albumOpen = $('albumOpen'), albumEl = $('album'), albumPanel = $('albumPanel');
   const albumBody = $('albumBody'), albumSummary = $('albumSummary'), albumClose = $('albumClose');
+  const viewer = $('viewer'), viewerCard = $('viewerCard');
+  const viewerArt = $('viewerArt'), viewerPhrase = $('viewerPhrase'), viewerTag = $('viewerTag');
 
   let W = 0, H = 0, vw = 0, vh = 0;
   let cardRect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
@@ -2378,7 +2511,8 @@
         if (!item) return;
         const count = Math.max(0, Number(item.count) || 0);
         const lit = !!item.lit || count > 0;
-        if (lit || count > 0) albumData[key] = { lit: lit, count: count };
+        const phrase = typeof item.phrase === 'string' ? item.phrase : '';
+        if (lit || count > 0) albumData[key] = { lit: lit, count: count, phrase: phrase };
       });
     } catch (e) {}
   }
@@ -2486,10 +2620,15 @@
         albumCells[key] = {
           rarity: rarity,
           artName: art.name,
+          art: art,
           cell: cell,
           nameEl: nameEl,
           countEl: countEl
         };
+        cell.addEventListener('click', function () {
+          const rec = albumData[key];
+          if (rec && (rec.lit || rec.count > 0)) openCardViewer(key);
+        });
       });
 
       section.appendChild(head);
@@ -2509,9 +2648,10 @@
   function recordPattern() {
     if (!state.art) return;
     const key = patternKey(state.rarity, state.art.name);
-    const rec = albumData[key] || { lit: false, count: 0 };
+    const rec = albumData[key] || { lit: false, count: 0, phrase: '' };
     rec.lit = true;
     rec.count = (rec.count || 0) + 1;
+    rec.phrase = state.phrase;
     albumData[key] = rec;
     saveAlbumData();
     updateAlbumCell(key);
@@ -2534,6 +2674,88 @@
     loadAlbumData();
     renderAlbum();
     updateAlbumTotals();
+  }
+
+  /* ================= 3D 卡片查看 ================= */
+  let viewerOpen = false;
+  let vDragging = false, vStartX = 0, vStartY = 0;
+
+  function paintViewerArt(art) {
+    const grid = art.grid || 28;
+    const src = document.createElement('canvas');
+    src.width = grid;
+    src.height = grid;
+    art.draw(src.getContext('2d'));
+    const size = 360;
+    viewerArt.width = size;
+    viewerArt.height = size;
+    const ctx = viewerArt.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(src, 0, 0, size, size);
+  }
+
+  function beginViewerDrag(x, y) {
+    if (!viewerOpen) return;
+    vDragging = true;
+    vStartX = x;
+    vStartY = y;
+    viewerCard.style.transition = 'none';
+    viewerCard.style.cursor = 'grabbing';
+  }
+
+  function moveViewerDrag(x, y) {
+    if (!viewerOpen || !vDragging) return;
+    const xAngle = clamp((x - vStartX) * .18, -30, 30);
+    const yAngle = clamp(-(y - vStartY) * .18, -30, 30);
+    viewerCard.style.transform = 'rotateX(' + yAngle + 'deg) rotateY(' + xAngle + 'deg)';
+  }
+
+  function resetViewerCard() {
+    vDragging = false;
+    viewerCard.style.transition = 'transform .5s ease';
+    viewerCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    viewerCard.style.cursor = 'grab';
+  }
+
+  function openCardViewer(key) {
+    const item = albumCells[key];
+    const rec = albumData[key];
+    if (!item || !rec || !(rec.lit || rec.count > 0)) return;
+    const rc = RARITY[item.rarity];
+    const phrase = rec.phrase || POOLS[item.rarity].texts[0];
+    viewerCard.style.setProperty('--vc-soft', rc.soft);
+    viewerCard.style.setProperty('--vc-accent', rc.color);
+    viewerCard.style.setProperty('--vc-ink', rc.ink);
+    viewerCard.style.setProperty('--vc-glow', rc.glow);
+    viewerCard.style.setProperty('--vc-border', rc.tagBorder);
+    viewerCard.dataset.rarity = item.rarity;
+    viewerPhrase.textContent = phrase;
+    viewerTag.textContent = rc.name;
+    viewerTag.style.color = rc.tagInk;
+    viewerTag.style.background = rc.tagBg;
+    viewerTag.style.borderColor = rc.tagBorder;
+    if (item.rarity === 'mythic') {
+      viewerTag.style.background = 'linear-gradient(90deg,#ffe08a,#ff9fd0,#b79bff,#7fe3d3,#ffd166)';
+      viewerTag.style.color = '#5b3c08';
+      viewerTag.style.borderColor = '#fff3c4';
+    }
+    paintViewerArt(item.art);
+    viewerCard.style.transition = 'none';
+    viewerCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    viewerCard.style.cursor = 'grab';
+    vDragging = false;
+    viewerOpen = true;
+    viewer.classList.add('open');
+    viewer.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeCardViewer() {
+    if (!viewerOpen && !viewer.classList.contains('open')) return;
+    viewerOpen = false;
+    resetViewerCard();
+    viewer.classList.remove('open');
+    viewer.setAttribute('aria-hidden', 'true');
   }
 
   /* ================= 尺寸与重建 ================= */
@@ -2695,8 +2917,33 @@
     });
     albumEl.addEventListener('click', closeAlbum);
     albumPanel.addEventListener('click', function (e) { e.stopPropagation(); });
+    viewerCard.addEventListener('mousedown', function (e) {
+      beginViewerDrag(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    viewerCard.addEventListener('mousemove', function (e) {
+      moveViewerDrag(e.clientX, e.clientY);
+    });
+    viewerCard.addEventListener('mouseup', resetViewerCard);
+    viewerCard.addEventListener('mouseleave', resetViewerCard);
+    viewerCard.addEventListener('touchstart', function (e) {
+      if (!viewerOpen || !e.touches[0]) return;
+      beginViewerDrag(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    viewerCard.addEventListener('touchmove', function (e) {
+      if (!viewerOpen || !e.touches[0]) return;
+      moveViewerDrag(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault();
+    }, { passive: false });
+    viewerCard.addEventListener('touchend', resetViewerCard);
+    viewerCard.addEventListener('touchcancel', resetViewerCard);
+    viewer.addEventListener('click', function (e) {
+      if (e.target === viewer) closeCardViewer();
+    });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeAlbum();
+      if (e.key !== 'Escape') return;
+      if (viewerOpen) closeCardViewer();
+      else closeAlbum();
     });
   }
 
