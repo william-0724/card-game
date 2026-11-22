@@ -1,0 +1,2740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#f9ede2">
+<title>刮刮乐 · 今日份小确幸</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: #f8efe5;
+    font-family: "Yuanti SC", "Hiragino Sans GB", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    color: #66503f;
+    user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #bg, #fx { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #bg { z-index: 0; }
+  #fx { z-index: 6; pointer-events: none; }
+  #stage {
+    position: fixed; inset: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 16px 96px; pointer-events: none;
+    animation: stageIn .8s ease both;
+  }
+  @keyframes stageIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  #card {
+    position: relative;
+    width: min(86vw, 392px, 54vh);
+    aspect-ratio: 0.78;
+    padding: 10px;
+    border-radius: 30px;
+    background: linear-gradient(158deg, #fffefb 0%, #fff9ee 46%, #f7ebd7 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .95),
+      inset 0 -2px 10px rgba(186, 158, 120, .2),
+      0 42px 72px -34px rgba(120, 92, 66, .52),
+      0 18px 32px -24px rgba(120, 92, 66, .42);
+    pointer-events: auto;
+    transition: transform .45s cubic-bezier(.2, .9, .3, 1), opacity .45s ease;
+    will-change: transform, opacity;
+  }
+  #card::before {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 26px;
+    border: 1px solid rgba(212, 183, 142, .55);
+    pointer-events: none;
+    z-index: 3;
+  }
+  #inner {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 21px;
+    overflow: hidden;
+    background: #fff8ec;
+    box-shadow: inset 0 2px 8px rgba(120, 90, 60, .16);
+    transform: translateZ(0);
+  }
+  #art, #coat { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #coat { cursor: crosshair; touch-action: none; }
+  #art { transform-origin: 50% 44%; transition: transform 1.6s cubic-bezier(.16, .9, .28, 1); }
+  #card.reveal #art { transform: scale(1.06); }
+  #card[data-rarity="normal"].reveal #art { transform: scale(1.035); transition-duration: 1.35s; }
+  #card[data-rarity="rare"].reveal #art { transform: scale(1.055); transition-duration: 1.7s; }
+  #card[data-rarity="legendary"].reveal #art { transform: scale(1.07); transition-duration: 2.1s; }
+  #card[data-rarity="mythic"].reveal #art { transform: scale(1.085); transition-duration: 2.9s; }
+  #card.swap { opacity: 0; transform: scale(.93) translateY(8px); }
+  @media (hover: none) { #coat { cursor: default; } }
+  @media (max-height: 520px) { #card { width: min(74vw, 300px, 66vh); } }
+
+  /* ===== 图鉴入口 ===== */
+  #gallery {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    z-index: 4;
+    width: min(620px, calc(100vw - 24px));
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 10px 8px 16px;
+    border-radius: 18px;
+    background: rgba(255, 252, 246, .86);
+    border: 1px solid rgba(212, 187, 154, .55);
+    box-shadow: 0 18px 36px -26px rgba(105, 78, 52, .65), inset 0 1px 0 rgba(255, 255, 255, .9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: auto;
+    animation: fadeUp .8s .25s both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  .album-bar-info { flex: 1; min-width: 0; }
+  .album-bar-title { font-size: 9.5px; letter-spacing: .1em; color: #a89480; }
+  .album-bar-count {
+    margin-top: 2px; font-size: 13px; font-weight: 700; color: #715c49;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  #albumOpen {
+    flex: 0 0 auto;
+    border: 1px solid rgba(196, 165, 127, .6);
+    background: linear-gradient(180deg, #fffdf8, #fff4e4);
+    color: #7a6652;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit; font-size: 11px; font-weight: 700;
+    letter-spacing: .04em;
+    box-shadow: 0 3px 0 rgba(190, 160, 125, .18);
+    cursor: pointer;
+  }
+  #albumOpen:active { transform: translateY(1px); }
+
+  /* ===== 图鉴弹窗 ===== */
+  #album {
+    position: fixed; inset: 0; z-index: 30;
+    display: none; align-items: center; justify-content: center;
+    padding: 18px;
+    background: rgba(74, 55, 40, .36);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  #album.open { display: flex; }
+  #albumPanel {
+    width: min(880px, 100%);
+    max-height: 88vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    border-radius: 24px;
+    background: linear-gradient(160deg, #fffdf8, #fff7ea);
+    box-shadow: 0 30px 60px -20px rgba(80, 55, 35, .55), inset 0 1px 0 #fff;
+    animation: albumIn .35s cubic-bezier(.2, 1.3, .4, 1);
+  }
+  @keyframes albumIn {
+    from { opacity: 0; transform: scale(.94) translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  #albumHead {
+    flex: 0 0 auto;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 18px 20px 10px;
+    border-bottom: 1px dashed rgba(196, 170, 140, .5);
+  }
+  #albumBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 20px 22px;
+    overscroll-behavior: contain;
+  }
+  .album-head-title { font-size: 18px; font-weight: 700; color: #5f4a38; letter-spacing: .02em; }
+  #albumSummary { margin-top: 4px; font-size: 11px; color: #a89480; font-variant-numeric: tabular-nums; }
+  #albumClose {
+    width: 30px; height: 30px; border: 0; border-radius: 50%;
+    background: rgba(120, 96, 72, .1); color: #7a6652;
+    font-size: 19px; line-height: 1; cursor: pointer;
+  }
+  .album-section { margin-top: 16px; }
+  .album-section[data-rarity="normal"] { --rc: #a2917f; --rc-soft: #f1e8dc; }
+  .album-section[data-rarity="rare"] { --rc: #4a8fd8; --rc-soft: #e3f0ff; }
+  .album-section[data-rarity="legendary"] { --rc: #a06bd8; --rc-soft: #f2e7ff; }
+  .album-section[data-rarity="mythic"] { --rc: #e0a52a; --rc-soft: #fff1c2; }
+  .album-sec-head { display: flex; align-items: center; gap: 7px; padding: 0 2px 8px; }
+  .rarity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 8px var(--rc); }
+  .sec-name { font-size: 12.5px; font-weight: 700; color: var(--rc); }
+  .sec-sub { font-size: 9.5px; color: #a89480; letter-spacing: .04em; }
+  .sec-count { margin-left: auto; font-size: 10px; color: #a89480; font-variant-numeric: tabular-nums; }
+  .album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 8px;
+  }
+  .album-cell { min-width: 0; }
+  .cell-frame {
+    position: relative; aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px; overflow: hidden;
+    background: linear-gradient(160deg, #fffdf8, var(--rc-soft));
+    border: 1.5px solid rgba(190, 165, 135, .35);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .cell-frame canvas { width: 100%; height: 100%; display: block; }
+  .album-cell:not(.lit) .cell-frame canvas { filter: brightness(0) saturate(0); opacity: .16; }
+  .album-cell:not(.lit) .cell-frame::after {
+    content: "?";
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    color: rgba(120, 100, 80, .35);
+    pointer-events: none;
+  }
+  .album-cell.lit .cell-frame { border-color: var(--rc); box-shadow: 0 2px 8px rgba(120, 92, 66, .1); }
+  .album-cell.lit .cell-frame:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 6px 14px rgba(120, 92, 66, .22); }
+  .album-section[data-rarity="mythic"] .album-cell.lit .cell-frame {
+    border-color: #ffd166;
+    box-shadow: 0 0 0 2px #ffd166, 0 0 16px rgba(255, 190, 70, .5);
+  }
+  .cell-name {
+    margin-top: 5px;
+    font-size: 10.5px; color: #715c49; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .album-cell:not(.lit) .cell-name { color: #b9a895; }
+  .cell-count {
+    position: absolute; right: 4px; bottom: 3px; z-index: 2;
+    padding: 2px 5px; border-radius: 6px;
+    background: rgba(255, 253, 247, .86);
+    font-size: 7.5px; line-height: 1.2; color: #8a7562;
+    text-align: center; white-space: nowrap;
+  }
+  .album-cell:not(.lit) .cell-count { color: #c4b4a2; background: rgba(255, 253, 247, .55); }
+  @media (max-width: 560px) {
+    #gallery { width: calc(100vw - 20px); padding: 7px 8px 7px 13px; gap: 8px; }
+    .album-bar-title { font-size: 8.5px; }
+    .album-bar-count { font-size: 12px; }
+    #albumOpen { padding: 7px 12px; font-size: 10.5px; }
+    #albumPanel { border-radius: 20px; max-height: 92vh; }
+    #albumHead { padding: 14px 14px 9px; }
+    #albumBody { padding: 0 14px 18px; }
+    .album-head-title { font-size: 16px; }
+    .album-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+    .cell-name { font-size: 9.5px; }
+    .cell-count { font-size: 8px; }
+  }
+  @media (max-height: 560px) {
+    #card { width: min(74vw, 280px, 56vh); }
+    #gallery { bottom: 8px; }
+    #albumPanel { max-height: 94vh; }
+  }
+  @media (max-height: 460px) {
+    #card { width: min(70vw, 250px, 46vh); }
+  }
+</style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div id="stage">
+    <div id="card" role="application" aria-label="刮刮乐小游戏，滑动刮开涂层">
+      <div id="inner">
+        <canvas id="art"></canvas>
+        <canvas id="coat"></canvas>
+      </div>
+    </div>
+  </div>
+  <div id="gallery" aria-label="基础图案图鉴">
+    <div class="album-bar-info">
+      <div class="album-bar-title">基础图案图鉴</div>
+      <div class="album-bar-count">已收集图鉴 <span id="galleryCount">0 / 22</span></div>
+    </div>
+    <button id="albumOpen" type="button">打开图鉴</button>
+  </div>
+  <div id="album" aria-hidden="true">
+    <div id="albumPanel">
+      <div id="albumHead">
+        <div>
+          <div class="album-head-title">基础图案集邮册</div>
+          <div id="albumSummary">已收集图鉴 0 / 22</div>
+        </div>
+        <button id="albumClose" type="button" aria-label="关闭图鉴">×</button>
+      </div>
+      <div id="albumBody"></div>
+    </div>
+  </div>
+  <canvas id="fx"></canvas>
+
+<script>
+(function () {
+  'use strict';
+  /* ================= 基础工具 ================= */
+  const TAU = Math.PI * 2;
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+  const easeInOut = (t) => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const easeOutBack = (t) => {
+    const c = 1.9;
+    return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
+  };
+
+  const FONT = '"Yuanti SC","Hiragino Sans GB","PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+
+  /* ================= 主题与文案 ================= */
+  const THEMES = [
+    {
+      sky: ['#fdf4e8', '#fbe9da', '#f7ddd2'],
+      blob: ['rgba(255,204,174,.55)', 'rgba(255,226,190,.5)', 'rgba(255,183,166,.35)'],
+      accent: '#e88a6b', artBg: '#ffe4cd',
+      paper: ['#fffdf8', '#fff4e3'],
+      coat: ['#efe3ca', '#ddcdad', '#d0bd99'],
+      coatInk: '#8b7654', ink: '#66503f', sub: '#a8907a'
+    },
+    {
+      sky: ['#f5f0fc', '#eee7fa', '#e6dcf4'],
+      blob: ['rgba(206,190,255,.5)', 'rgba(232,222,255,.55)', 'rgba(188,174,240,.32)'],
+      accent: '#8a78d0', artBg: '#ece4ff',
+      paper: ['#fffdff', '#f7f2ff'],
+      coat: ['#e6e0ec', '#d6cfe0', '#c6bed2'],
+      coatInk: '#7c7390', ink: '#5e5470', sub: '#9c93ae'
+    },
+    {
+      sky: ['#fffaea', '#fdf2d4', '#f9e8c0'],
+      blob: ['rgba(255,224,150,.5)', 'rgba(255,240,190,.55)', 'rgba(250,215,150,.35)'],
+      accent: '#e0a92f', artBg: '#fff1c6',
+      paper: ['#fffdf6', '#fff8e6'],
+      coat: ['#f3e6c4', '#e5d3a6', '#d8c393'],
+      coatInk: '#8f7a4c', ink: '#6b5738', sub: '#a9966f'
+    },
+    {
+      sky: ['#eef9f4', '#e2f4ef', '#d9eee9'],
+      blob: ['rgba(168,231,214,.45)', 'rgba(206,244,236,.5)', 'rgba(150,214,205,.32)'],
+      accent: '#54b1a1', artBg: '#ddf5ee',
+      paper: ['#fbfffd', '#f1fbf7'],
+      coat: ['#e6e9dd', '#d6dbcd', '#c8cfc2'],
+      coatInk: '#74806c', ink: '#4f635c', sub: '#93a49d'
+    },
+    {
+      sky: ['#fdf1f4', '#fbe4ea', '#f8d9e2'],
+      blob: ['rgba(255,192,210,.5)', 'rgba(255,222,232,.55)', 'rgba(250,175,198,.33)'],
+      accent: '#e5859f', artBg: '#ffe2ea',
+      paper: ['#fffdfd', '#fff3f6'],
+      coat: ['#f3e2d6', '#e4d0c1', '#d7c1b0'],
+      coatInk: '#8d7365', ink: '#67503f', sub: '#a78f82'
+    }
+  ];
+
+  const CHEERS = [
+    '今天也值得被喜欢',
+    '你已经做得很好了',
+    '好运会绕回来找你',
+    '慢慢来，一切都来得及',
+    '辛苦都被刮掉啦'
+  ];
+
+  /* ================= 稀有度（概率集中定义） ================= */
+  const RARITY = {
+    normal: {
+      key: 'normal', name: '普通', weight: 69,
+      color: '#a2917f', soft: '#f1e8dc', ink: '#806b58',
+      glow: '#c9b7a2', artHalo: null, extras: 0, halo: 0, twinkle: 0,
+      burst: 0, flash: 0,
+      tagBg: '#f0e6d9', tagInk: '#8a7562', tagBorder: '#dccbb7',
+      deco: ['#ffffff', '#e8d7c4'],
+      haloColors: []
+    },
+    rare: {
+      key: 'rare', name: '稀有', weight: 25,
+      color: '#4a8fd8', soft: '#e3f0ff', ink: '#2f5f9d',
+      glow: '#ffd06a', artHalo: '#ffe6b8', extras: 9, halo: 0, twinkle: 0,
+      burst: 46, flash: 0,
+      tagBg: '#e3f0ff', tagInk: '#2f5f9d', tagBorder: '#ffce63',
+      deco: ['#ffd76a', '#8fc7ff', '#ffffff', '#ffb6d0'],
+      haloColors: ['#ffd76a', '#8fc7ff', '#ffd76a']
+    },
+    legendary: {
+      key: 'legendary', name: '传说', weight: 5,
+      color: '#a06bd8', soft: '#f2e7ff', ink: '#6a3aab',
+      glow: '#c9a2ff', artHalo: '#eee2ff', extras: 16, halo: 1, twinkle: 5,
+      burst: 72, flash: .3,
+      tagBg: '#f2e7ff', tagInk: '#6a3aab', tagBorder: '#c9a2ff',
+      deco: ['#ffe08a', '#c9a2ff', '#ff9fd0', '#ffffff'],
+      haloColors: ['#ffe08a', '#ff9fd0', '#c9a2ff', '#ffe08a']
+    },
+    mythic: {
+      key: 'mythic', name: '神话', weight: 1,
+      color: '#e0a52a', soft: '#fff1c2', ink: '#6b4a0f',
+      glow: '#ffd35e', artHalo: '#fff0b8', extras: 24, halo: 2, twinkle: 9,
+      burst: 120, flash: .5,
+      tagBg: '#ffd35e', tagInk: '#5b3c08', tagBorder: '#fff3c4',
+      deco: ['#ffd166', '#ff8fa8', '#b79bff', '#7fe3d3', '#ffffff'],
+      haloColors: ['#ffd166', '#ff8fa8', '#b79bff', '#7fe3d3', '#ffd166']
+    }
+  };
+
+  const RARITY_KEYS = ['normal', 'rare', 'legendary', 'mythic'];
+
+  const RARITY_TIMING = {
+    normal: { fade: 640, bannerDelay: 240, bannerPop: 720, swap: 2550, next: 3000 },
+    rare: { fade: 680, bannerDelay: 240, bannerPop: 780, swap: 2750, next: 3200 },
+    legendary: { fade: 780, bannerDelay: 280, bannerPop: 900, swap: 3000, next: 3500 },
+    mythic: { fade: 1000, bannerDelay: 380, bannerPop: 1100, swap: 3800, next: 4400 }
+  };
+
+  function rollRarity() {
+    const total = RARITY_KEYS.reduce((sum, k) => sum + RARITY[k].weight, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < RARITY_KEYS.length; i++) {
+      const k = RARITY_KEYS[i];
+      r -= RARITY[k].weight;
+      if (r < 0) return k;
+    }
+    return 'normal';
+  }
+
+  function makeDecor(rarity) {
+    const count = RARITY[rarity].extras;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const roll = Math.random();
+      arr.push({
+        a: rand(0, TAU),
+        rad: rand(.62, .98),
+        size: rand(.018, .04),
+        type: roll < .5 ? 'star' : (roll < .8 ? 'dot' : 'heart'),
+        color: pick(RARITY[rarity].deco),
+        alpha: rand(.35, .85)
+      });
+    }
+    return arr;
+  }
+
+  function makeTwinkles(rarity) {
+    const count = RARITY[rarity].twinkle;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      arr.push({
+        a: rand(0, TAU),
+        rad: rand(.72, 1.02),
+        size: rand(.018, .034),
+        sp: rand(.7, 1.5),
+        ph: rand(0, TAU),
+        color: pick(RARITY[rarity].deco)
+      });
+    }
+    return arr;
+  }
+
+  /* ================= DOM 与状态 ================= */
+  const $ = (id) => document.getElementById(id);
+  const bgCv = $('bg'), bgCtx = bgCv.getContext('2d');
+  const fxCv = $('fx'), fxCtx = fxCv.getContext('2d');
+  const card = $('card'), inner = $('inner');
+  const artCv = $('art'), artCtx = artCv.getContext('2d');
+  const coatCv = $('coat'), coatCtx = coatCv.getContext('2d');
+  const galleryCount = $('galleryCount');
+  const albumOpen = $('albumOpen'), albumEl = $('album'), albumPanel = $('albumPanel');
+  const albumBody = $('albumBody'), albumSummary = $('albumSummary'), albumClose = $('albumClose');
+
+  let W = 0, H = 0, vw = 0, vh = 0;
+  let cardRect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+
+  const state = {
+    index: -1,
+    theme: THEMES[0],
+    phrase: '',
+    cheer: '',
+    rarity: null,
+    art: null,
+    lastArtName: null,
+    decor: [],
+    twinkles: [],
+    skyStars: [],
+    stats: { total: 0, rare: 0, legendary: 0, mythic: 0 },
+    scratchable: false,
+    drawing: false,
+    last: null,
+    lastMoveAt: 0,
+    pending: null,
+    reveal: false,
+    revealAt: 0,
+    snap: null,
+    swapping: false,
+    progress: 0,
+    lastCheck: 0
+  };
+
+  const particles = [];
+
+  function sizeBacking(cv, w, h) {
+    cv.width = Math.max(1, Math.round(w * DPR));
+    cv.height = Math.max(1, Math.round(h * DPR));
+    cv.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function hexA(hex, a) {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const n = parseInt(full, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function spacedText(ctx, text, cx, y, spacing) {
+    const chars = Array.from(text);
+    const widths = chars.map((ch) => ctx.measureText(ch).width);
+    let total = spacing * Math.max(0, chars.length - 1);
+    for (const w of widths) total += w;
+    const prevAlign = ctx.textAlign;
+    ctx.textAlign = 'left';
+    let x = cx - total / 2;
+    for (let i = 0; i < chars.length; i++) {
+      ctx.fillText(chars[i], x, y);
+      x += widths[i] + spacing;
+    }
+    ctx.textAlign = prevAlign;
+  }
+
+  function wrapText(ctx, text, maxW) {
+    const chars = Array.from(text);
+    const lines = [];
+    let line = '';
+    for (const ch of chars) {
+      const test = line + ch;
+      if (line && ctx.measureText(test).width > maxW) {
+        lines.push(line);
+        line = ch;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawSparkle(ctx, x, y, r, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = ctx.globalAlpha * (alpha === undefined ? 1 : alpha);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.quadraticCurveTo(x + r * .18, y - r * .18, x + r, y);
+    ctx.quadraticCurveTo(x + r * .18, y + r * .18, x, y + r);
+    ctx.quadraticCurveTo(x - r * .18, y + r * .18, x - r, y);
+    ctx.quadraticCurveTo(x - r * .18, y - r * .18, x, y - r);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHeart(ctx, x, y, s, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, s * .38);
+    ctx.bezierCurveTo(-s * .95, -s * .12, -s * .48, -s * .95, 0, -s * .32);
+    ctx.bezierCurveTo(s * .48, -s * .95, s * .95, -s * .12, 0, s * .38);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ================= 像素小图案（28×28） ================= */
+  function pxRect(c, x, y, w, h, color) {
+    c.fillStyle = color;
+    c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+  }
+
+  function pxCircle(c, cx, cy, r, color) {
+    c.fillStyle = color;
+    const x0 = Math.floor(cx - r), x1 = Math.ceil(cx + r);
+    const y0 = Math.floor(cy - r), y1 = Math.ceil(cy + r);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const dx = x + .5 - cx, dy = y + .5 - cy;
+        if (dx * dx + dy * dy <= r * r) c.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function pxEllipse(c, cx, cy, rx, ry, color) {
+    c.fillStyle = color;
+    const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+    const y0 = Math.floor(cy - ry), y1 = Math.ceil(cy + ry);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const dx = (x + .5 - cx) / rx, dy = (y + .5 - cy) / ry;
+        if (dx * dx + dy * dy <= 1) c.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function pxDiamond(c, cx, cy, rx, ry, color) {
+    c.fillStyle = color;
+    const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+    const y0 = Math.floor(cy - ry), y1 = Math.ceil(cy + ry);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        if (Math.abs(x + .5 - cx) / rx + Math.abs(y + .5 - cy) / ry <= 1) c.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function pxTriUp(c, x, y, w, h, color) {
+    c.fillStyle = color;
+    const bx = Math.round(x);
+    for (let row = 0; row < h; row++) {
+      const span = Math.round(w * (row + 1) / h);
+      const sx = bx + Math.round((w - span) / 2);
+      c.fillRect(sx, y + row, span, 1);
+    }
+  }
+
+  function pxTriDown(c, x, y, w, h, color) {
+    c.fillStyle = color;
+    const bx = Math.round(x);
+    for (let row = 0; row < h; row++) {
+      const span = Math.round(w * (h - row) / h);
+      if (span <= 0) continue;
+      const sx = bx + Math.round((w - span) / 2);
+      c.fillRect(sx, y + row, span, 1);
+    }
+  }
+
+  function pxLine(c, x0, y0, x1, y1, color, thick) {
+    c.fillStyle = color;
+    const steps = Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+    const t = thick || 1;
+    const off = Math.floor(t / 2);
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round(x0 + (x1 - x0) * i / steps);
+      const y = Math.round(y0 + (y1 - y0) * i / steps);
+      c.fillRect(x - off, y - off, t, t);
+    }
+  }
+
+  function artCat(c) {
+    const line = '#6d5140', fur = '#f8dcb7', pink = '#ff9fb4';
+    const eye = '#42332b', white = '#fffaf0';
+    // 耳朵
+    pxTriUp(c, 2, 3, 10, 10, line);
+    pxTriUp(c, 16, 3, 10, 10, line);
+    pxTriUp(c, 4, 5, 6, 7, fur);
+    pxTriUp(c, 18, 5, 6, 7, fur);
+    pxTriUp(c, 6, 7, 2, 4, pink);
+    pxTriUp(c, 20, 7, 2, 4, pink);
+    // 脑袋
+    pxCircle(c, 14, 16.5, 10.3, line);
+    pxCircle(c, 14, 16.5, 9.1, fur);
+    // 眼睛
+    pxRect(c, 9, 13, 2, 3, eye);
+    pxRect(c, 17, 13, 2, 3, eye);
+    pxRect(c, 9, 13, 1, 1, white);
+    pxRect(c, 17, 13, 1, 1, white);
+    // 腮红
+    pxRect(c, 4, 18, 3, 1, pink);
+    pxRect(c, 21, 18, 3, 1, pink);
+    // 鼻子和嘴
+    pxRect(c, 13, 17, 2, 1, pink);
+    pxRect(c, 12, 19, 1, 1, line);
+    pxRect(c, 15, 19, 1, 1, line);
+    pxRect(c, 13, 20, 2, 1, line);
+    // 胡须
+    pxRect(c, 1, 15, 3, 1, line);
+    pxRect(c, 24, 15, 3, 1, line);
+    pxRect(c, 1, 18, 3, 1, line);
+    pxRect(c, 24, 18, 3, 1, line);
+    // 头顶小爱心
+    const hp = '#ff8fa8';
+    pxRect(c, 21, 5, 1, 1, hp);
+    pxRect(c, 24, 5, 1, 1, hp);
+    pxRect(c, 21, 6, 4, 1, hp);
+    pxRect(c, 22, 7, 2, 1, hp);
+    pxRect(c, 22, 8, 1, 1, hp);
+  }
+
+  function artStar(c) {
+    const dark = '#dc9f2f', gold = '#ffd35e', light = '#fff2bd';
+    const ink = '#6b4a2a', pink = '#ff9fb4', sp = '#fff6d8';
+    pxDiamond(c, 14, 14, 4.4, 13.6, dark);
+    pxDiamond(c, 14, 14, 13.6, 4.4, dark);
+    pxCircle(c, 14, 14, 5.8, dark);
+    pxDiamond(c, 14, 14, 3, 12, gold);
+    pxDiamond(c, 14, 14, 12, 3, gold);
+    pxCircle(c, 14, 14, 4.4, gold);
+    // 高光
+    pxDiamond(c, 14, 8.5, 1.2, 3.4, light);
+    pxRect(c, 9, 13, 2, 1, light);
+    // 表情
+    pxRect(c, 11, 12, 1, 2, ink);
+    pxRect(c, 16, 12, 1, 2, ink);
+    pxRect(c, 8, 15, 2, 1, pink);
+    pxRect(c, 18, 15, 2, 1, pink);
+    pxRect(c, 13, 16, 2, 1, ink);
+    // 小闪点
+    pxRect(c, 3, 5, 1, 1, sp);
+    pxRect(c, 25, 8, 1, 1, sp);
+    pxRect(c, 4, 22, 1, 1, sp);
+    pxRect(c, 24, 21, 1, 1, sp);
+  }
+
+  function artSmile(c) {
+    const dark = '#d99a22', yellow = '#ffd45f', light = '#ffefa9';
+    const ink = '#6b4a2a', pink = '#ff9db3';
+    pxCircle(c, 14, 14, 11.4, dark);
+    pxCircle(c, 14, 14, 9.8, yellow);
+    // 高光
+    pxRect(c, 8, 6, 2, 1, light);
+    pxRect(c, 7, 7, 1, 2, light);
+    pxRect(c, 10, 5, 2, 1, light);
+    // 眼睛
+    pxRect(c, 9, 10, 2, 4, ink);
+    pxRect(c, 17, 10, 2, 4, ink);
+    pxRect(c, 9, 10, 1, 1, '#fff8e8');
+    pxRect(c, 17, 10, 1, 1, '#fff8e8');
+    // 腮红
+    pxRect(c, 4, 15, 3, 2, pink);
+    pxRect(c, 21, 15, 3, 2, pink);
+    // 微笑
+    for (let i = 0; i <= 8; i++) {
+      const a = Math.PI * (.2 + .6 * i / 8);
+      const x = Math.round(14 + Math.cos(a) * 6.4);
+      const y = Math.round(14 + Math.sin(a) * 5.8);
+      pxRect(c, x, y, 1, 1, ink);
+    }
+  }
+
+  function artCloud(c) {
+    const line = '#8ac9c2', white = '#ffffff', soft = '#eefbf8';
+    const ink = '#54736d', pink = '#ffb3c1', blue = '#9ed7ef';
+    // 外轮廓
+    pxCircle(c, 9, 15, 6.6, line);
+    pxCircle(c, 15, 12.5, 7.6, line);
+    pxCircle(c, 21, 15.5, 6.2, line);
+    pxRect(c, 3, 14, 22, 8, line);
+    // 云朵主体
+    pxCircle(c, 9, 15, 5.2, white);
+    pxCircle(c, 15, 12.5, 6.2, white);
+    pxCircle(c, 21, 15.5, 4.8, white);
+    pxRect(c, 4, 15, 20, 6, white);
+    pxRect(c, 7, 20, 14, 1, soft);
+    // 表情
+    pxRect(c, 10, 13, 1, 2, ink);
+    pxRect(c, 17, 13, 1, 2, ink);
+    pxRect(c, 13, 16, 2, 1, ink);
+    pxRect(c, 6, 16, 2, 1, pink);
+    pxRect(c, 20, 16, 2, 1, pink);
+    // 小心心
+    pxRect(c, 7, 24, 1, 1, pink);
+    pxRect(c, 9, 24, 1, 1, pink);
+    pxRect(c, 7, 25, 3, 1, pink);
+    pxRect(c, 8, 26, 1, 1, pink);
+    // 雨滴
+    pxRect(c, 22, 24, 1, 2, blue);
+    pxRect(c, 23, 25, 1, 1, blue);
+    pxRect(c, 14, 23, 1, 2, blue);
+    pxRect(c, 15, 24, 1, 1, blue);
+  }
+
+  function artCake(c) {
+    const line = '#c98599', cream = '#fff2d8', pink = '#ffd6e2';
+    const ink = '#6f4b45', red = '#ff7d90', green = '#8fce9b', plate = '#e8dcd2';
+    // 盘子
+    pxEllipse(c, 14, 24.8, 12, 1.8, plate);
+    // 下层
+    pxRect(c, 3, 17, 22, 7, line);
+    pxRect(c, 4, 18, 20, 5, pink);
+    pxRect(c, 4, 17, 20, 2, cream);
+    for (let x = 5; x < 24; x += 3) pxRect(c, x, 19, 1, 1, cream);
+    // 上层
+    pxRect(c, 7, 10, 14, 8, line);
+    pxRect(c, 8, 11, 12, 6, cream);
+    pxRect(c, 8, 10, 12, 2, '#ffffff');
+    for (let x = 9; x < 20; x += 3) pxRect(c, x, 12, 1, 1, '#ffffff');
+    // 表情
+    pxRect(c, 11, 13, 1, 2, ink);
+    pxRect(c, 16, 13, 1, 2, ink);
+    pxRect(c, 13, 15, 2, 1, ink);
+    pxRect(c, 9, 15, 2, 1, '#ffb3c1');
+    pxRect(c, 17, 15, 2, 1, '#ffb3c1');
+    // 樱桃
+    pxRect(c, 14, 5, 1, 3, green);
+    pxCircle(c, 14, 8, 2.1, red);
+    pxRect(c, 13, 7, 1, 1, '#ffd0d6');
+    // 糖屑
+    pxRect(c, 6, 20, 1, 1, '#ffd166');
+    pxRect(c, 18, 21, 1, 1, '#9ed7ef');
+    pxRect(c, 10, 21, 1, 1, '#ffb3c1');
+  }
+
+  /* ================= 普通池：日常简约小物 ================= */
+  function artPencil(c) {
+    const ink = '#7c8583';
+    const body = '#d9c9a8', body2 = '#cdbb95';
+    const eraser = '#c9a7a2', band = '#b8b3a5';
+    pxRect(c, 10, 4, 8, 4, ink);
+    pxRect(c, 11, 5, 6, 2, eraser);
+    pxRect(c, 10, 7, 8, 2, ink);
+    pxRect(c, 11, 7, 6, 1, band);
+    pxRect(c, 10, 9, 8, 12, ink);
+    pxRect(c, 11, 9, 6, 12, body);
+    pxRect(c, 12, 10, 1, 10, '#e7dcc2');
+    pxRect(c, 16, 9, 1, 12, body2);
+    pxRect(c, 11, 12, 6, 1, '#c7b894');
+    pxTriDown(c, 10, 21, 8, 4, ink);
+    pxTriDown(c, 11, 21, 6, 3, '#e8d9bd');
+    pxRect(c, 13, 24, 2, 1, '#5f6764');
+    pxRect(c, 5, 20, 2, 1, '#aaa396');
+    pxRect(c, 4, 22, 3, 1, '#bbb4a6');
+    pxRect(c, 6, 24, 2, 1, '#c7bfb0');
+  }
+
+  function artCup(c) {
+    const line = '#83999e', light = '#d3e4e5', mid = '#b9d2d4', dark = '#a3c0c3';
+    pxRect(c, 8, 10, 12, 13, line);
+    pxRect(c, 9, 11, 10, 11, light);
+    pxRect(c, 9, 16, 10, 6, mid);
+    pxRect(c, 9, 20, 10, 2, dark);
+    pxRect(c, 8, 10, 12, 1, '#6f858a');
+    pxRect(c, 9, 13, 10, 2, '#9fc4cb');
+    pxRect(c, 10, 13, 3, 1, '#dff0f1');
+    pxRect(c, 19, 12, 5, 1, line);
+    pxRect(c, 23, 13, 1, 4, line);
+    pxRect(c, 19, 17, 5, 1, line);
+    pxRect(c, 11, 6, 1, 3, '#c2cbc6');
+    pxRect(c, 12, 5, 1, 1, '#c2cbc6');
+    pxRect(c, 16, 7, 1, 3, '#cdd5d0');
+    pxRect(c, 17, 6, 1, 1, '#cdd5d0');
+    pxRect(c, 10, 14, 1, 3, '#eef7f7');
+  }
+
+  function artNote(c) {
+    const outline = '#c4b394', paper = '#f2e5c6', shade = '#e2d1ae', ink = '#a29a8c', tape = '#a9bfc2';
+    pxRect(c, 7, 7, 15, 15, outline);
+    pxRect(c, 8, 8, 13, 13, paper);
+    for (let i = 0; i < 4; i++) pxRect(c, 17 + i, 7, 4 - i, 1, shade);
+    pxRect(c, 16, 8, 1, 4, '#d5c19a');
+    pxRect(c, 11, 5, 6, 2, tape);
+    pxRect(c, 10, 12, 8, 1, ink);
+    pxRect(c, 10, 15, 6, 1, ink);
+    pxRect(c, 10, 18, 7, 1, ink);
+    pxRect(c, 16, 20, 1, 1, '#89a78e');
+    pxRect(c, 17, 21, 1, 1, '#89a78e');
+    pxRect(c, 18, 20, 1, 1, '#89a78e');
+  }
+
+  function artLeaf(c) {
+    const dark = '#6f8c76', leaf = '#a9c0a1', light = '#c8dcc0', vein = '#7e9a81', stem = '#8a775f';
+    for (let y = 4; y <= 23; y++) {
+      const t = (y - 4) / 19;
+      const hw = Math.round(6.5 * Math.sin(Math.PI * t));
+      if (hw <= 0) continue;
+      pxRect(c, 14 - hw - 1, y, hw * 2 + 3, 1, dark);
+    }
+    for (let y = 5; y <= 22; y++) {
+      const t = (y - 5) / 17;
+      const hw = Math.round(6 * Math.sin(Math.PI * t));
+      if (hw <= 0) continue;
+      pxRect(c, 14 - hw, y, hw * 2 + 1, 1, leaf);
+    }
+    pxRect(c, 14, 8, 1, 12, vein);
+    pxRect(c, 11, 11, 3, 1, vein);
+    pxRect(c, 15, 14, 3, 1, vein);
+    pxRect(c, 11, 17, 3, 1, vein);
+    pxRect(c, 14, 23, 1, 3, stem);
+    pxRect(c, 9, 9, 1, 2, light);
+  }
+
+  function artBread(c) {
+    const crust = '#c59a6b', inner = '#edcf9b', shade = '#dcb880', score = '#b88655', light = '#f7e3bd';
+    pxEllipse(c, 14, 15, 9, 7, crust);
+    pxRect(c, 5, 15, 18, 7, crust);
+    pxEllipse(c, 14, 15, 7.8, 5.8, inner);
+    pxRect(c, 6, 15, 16, 6, inner);
+    pxRect(c, 6, 20, 16, 1, shade);
+    pxEllipse(c, 11, 12, 4, 2, light);
+    pxLine(c, 9, 12, 12, 8, score, 1);
+    pxLine(c, 13, 12, 16, 8, score, 1);
+    pxLine(c, 17, 13, 20, 9, score, 1);
+    pxRect(c, 8, 17, 1, 1, '#f7e3bd');
+    pxRect(c, 18, 18, 1, 1, '#f7e3bd');
+  }
+
+  function artUmbrella(c) {
+    const rim = '#7992a3', canopy = '#a8c0cf', canopy2 = '#8fa9ba', handle = '#8a7a66';
+    for (let y = 5; y <= 14; y++) {
+      const hw = Math.round(Math.sqrt(Math.max(0, 81 - (y - 14) * (y - 14))));
+      if (hw > 0) pxRect(c, 14 - hw, y, hw * 2 + 1, 1, rim);
+    }
+    for (let y = 6; y <= 13; y++) {
+      const hw = Math.round(Math.sqrt(Math.max(0, 64 - (y - 14) * (y - 14))));
+      if (hw > 0) pxRect(c, 14 - hw, y, hw * 2 + 1, 1, canopy);
+    }
+    pxLine(c, 14, 13, 8, 7, canopy2, 1);
+    pxLine(c, 14, 13, 20, 7, canopy2, 1);
+    pxRect(c, 14, 3, 1, 3, rim);
+    pxRect(c, 14, 15, 1, 8, handle);
+    pxRect(c, 14, 22, 2, 1, handle);
+    pxRect(c, 16, 22, 1, 2, handle);
+    pxRect(c, 15, 23, 1, 1, handle);
+    pxRect(c, 6, 14, 3, 1, rim);
+    pxRect(c, 12, 14, 4, 1, rim);
+    pxRect(c, 19, 14, 3, 1, rim);
+    pxRect(c, 7, 15, 1, 1, rim);
+    pxRect(c, 13, 15, 1, 1, rim);
+    pxRect(c, 20, 15, 1, 1, rim);
+  }
+
+  function artAlarm(c) {
+    const dark = '#6f7a7a', face = '#f1e8d6', mid = '#d8cbb3', accent = '#a6b5b4';
+    pxCircle(c, 8, 6, 3, dark);
+    pxCircle(c, 20, 6, 3, dark);
+    pxCircle(c, 8, 6, 2, mid);
+    pxCircle(c, 20, 6, 2, mid);
+    pxRect(c, 8, 8, 1, 2, dark);
+    pxRect(c, 19, 8, 1, 2, dark);
+    pxRect(c, 8, 23, 2, 3, dark);
+    pxRect(c, 18, 23, 2, 3, dark);
+    pxCircle(c, 14, 15, 8.5, dark);
+    pxCircle(c, 14, 15, 7.5, '#f8f0df');
+    pxCircle(c, 14, 15, 6.4, face);
+    pxRect(c, 14, 8, 1, 1, accent);
+    pxRect(c, 14, 21, 1, 1, accent);
+    pxRect(c, 7, 15, 1, 1, accent);
+    pxRect(c, 20, 15, 1, 1, accent);
+    pxRect(c, 14, 11, 1, 4, dark);
+    pxRect(c, 14, 15, 4, 1, dark);
+    pxRect(c, 13, 14, 2, 2, '#a6b5b4');
+    pxRect(c, 10, 11, 2, 1, '#fffaf0');
+    pxRect(c, 9, 17, 1, 1, accent);
+  }
+
+  function artPotato(c) {
+    const line = '#8b7a63', skin = '#d6c19c', light = '#e8d6b4', dark = '#a99575';
+    pxEllipse(c, 14, 15, 8.6, 7.2, line);
+    pxEllipse(c, 14, 15, 7.5, 6.2, skin);
+    pxEllipse(c, 11.5, 12.5, 3, 2, light);
+    pxRect(c, 9, 12, 1, 1, dark);
+    pxRect(c, 17, 16, 1, 1, dark);
+    pxRect(c, 12, 19, 1, 1, dark);
+    pxRect(c, 18, 11, 1, 1, dark);
+    pxRect(c, 15, 9, 1, 1, dark);
+    pxRect(c, 10, 17, 1, 1, '#c4ab85');
+    pxRect(c, 16, 13, 1, 1, '#c4ab85');
+    pxRect(c, 18, 6, 1, 3, '#7fa07c');
+    pxRect(c, 19, 5, 1, 1, '#9cbf95');
+  }
+
+  /* ================= 稀有池：精致小可爱 ================= */
+  function artGift(c) {
+    const gold = '#fff0b8', top = '#9dbcf5', mid = '#7e9be8', bot = '#617fd4';
+    const ribbon = '#ffd166', ribbon2 = '#e9a92e';
+    pxRect(c, 4, 10, 20, 5, gold);
+    pxRect(c, 4, 15, 20, 9, gold);
+    pxRect(c, 5, 11, 18, 3, top);
+    pxRect(c, 5, 13, 18, 1, mid);
+    pxRect(c, 5, 16, 18, 7, bot);
+    pxRect(c, 6, 16, 16, 2, mid);
+    pxRect(c, 12, 10, 4, 13, ribbon);
+    pxRect(c, 12, 10, 1, 13, '#ffe6a0');
+    pxRect(c, 15, 10, 1, 13, ribbon2);
+    pxCircle(c, 10, 8, 3.2, ribbon2);
+    pxCircle(c, 18, 8, 3.2, ribbon);
+    pxCircle(c, 10, 8, 2.1, ribbon);
+    pxCircle(c, 18, 8, 2.1, '#ffe6a0');
+    pxRect(c, 13, 7, 2, 3, ribbon2);
+    pxRect(c, 7, 17, 2, 1, '#ffe6a0');
+    pxRect(c, 20, 18, 1, 1, '#ffe6a0');
+  }
+
+  function artClover(c) {
+    const dark = '#5c9a6c', mid = '#83c38d', light = '#c3ecc5', gold = '#ffd166';
+    pxRect(c, 14, 16, 1, 9, '#4f8a5f');
+    pxRect(c, 13, 21, 1, 3, '#4f8a5f');
+    pxRect(c, 14, 23, 1, 3, '#4f8a5f');
+    pxRect(c, 15, 25, 2, 1, '#4f8a5f');
+    pxRect(c, 16, 24, 1, 1, '#4f8a5f');
+    const pts = [[9, 9], [19, 9], [9, 19], [19, 19]];
+    for (let i = 0; i < pts.length; i++) {
+      const x = pts[i][0], y = pts[i][1];
+      pxCircle(c, x, y, 4.8, dark);
+      pxCircle(c, x, y, 3.6, mid);
+      pxRect(c, x - 1, y - 2, 2, 1, light);
+    }
+    pxLine(c, 9, 9, 6, 6, dark, 1);
+    pxLine(c, 19, 9, 22, 6, dark, 1);
+    pxLine(c, 9, 19, 6, 22, dark, 1);
+    pxLine(c, 19, 19, 22, 22, dark, 1);
+    pxCircle(c, 14, 14, 2.4, '#4f8a5f');
+    pxCircle(c, 14, 14, 1.4, gold);
+    pxRect(c, 5, 5, 1, 1, gold);
+    pxRect(c, 24, 12, 1, 1, gold);
+    pxRect(c, 16, 3, 1, 1, gold);
+  }
+
+  /* ================= 传说池：魔法与珍宝 ================= */
+  function artBook(c) {
+    const dark = '#3d245f', cover = '#6b3fa0', cover2 = '#8759c0';
+    const gold = '#ffd166', gold2 = '#e2a92f', light = '#fff0b0';
+    const page = '#fff3d0', pageShade = '#e7d4a8', pink = '#ff7b9c';
+
+    // 书页块（右侧与底部露出）
+    pxRect(c, 9, 10, 14, 14, pageShade);
+    pxRect(c, 9, 10, 13, 12, page);
+    pxRect(c, 21, 11, 1, 12, pageShade);
+    pxRect(c, 21, 13, 1, 1, '#cdb88f');
+    pxRect(c, 21, 16, 1, 1, '#cdb88f');
+    pxRect(c, 21, 19, 1, 1, '#cdb88f');
+    pxRect(c, 10, 22, 12, 1, '#cdb88f');
+
+    // 封面
+    pxRect(c, 5, 7, 16, 16, dark);
+    pxRect(c, 6, 8, 14, 14, cover);
+    pxRect(c, 7, 9, 12, 12, cover2);
+    pxRect(c, 5, 7, 16, 1, gold);
+    pxRect(c, 5, 22, 16, 1, gold);
+    pxRect(c, 5, 7, 1, 16, gold2);
+    pxRect(c, 20, 7, 1, 16, gold2);
+    // 书脊
+    pxRect(c, 6, 8, 2, 14, dark);
+    pxRect(c, 8, 9, 1, 12, gold2);
+
+    // 星徽
+    pxCircle(c, 14, 14, 4.4, '#4a2a74');
+    pxCircle(c, 14, 14, 3.4, gold2);
+    pxRect(c, 14, 10, 1, 9, gold);
+    pxRect(c, 10, 14, 9, 1, gold);
+    pxRect(c, 13, 13, 3, 3, light);
+    pxRect(c, 14, 12, 1, 1, '#ffffff');
+
+    // 书签
+    pxRect(c, 17, 6, 2, 6, pink);
+    pxRect(c, 17, 11, 2, 1, '#d94f75');
+    pxRect(c, 20, 20, 1, 1, light);
+
+    // 星点
+    pxRect(c, 4, 4, 1, 1, gold);
+    pxRect(c, 23, 5, 1, 1, light);
+    pxRect(c, 3, 15, 1, 1, '#ffe9a8');
+    pxRect(c, 24, 15, 1, 1, '#ffe9a8');
+    pxRect(c, 11, 3, 1, 1, '#ffffff');
+  }
+
+  function artChest(c) {
+    const dark = '#6b4226', wood = '#a86f45', light = '#c98a5a', gold = '#ffd166', gold2 = '#d39a2f';
+    pxRect(c, 4, 9, 20, 6, dark);
+    pxRect(c, 4, 14, 20, 10, dark);
+    pxRect(c, 5, 10, 18, 4, light);
+    pxRect(c, 5, 15, 18, 8, wood);
+    pxRect(c, 6, 17, 16, 1, light);
+    pxRect(c, 6, 20, 16, 1, '#8f5b37');
+    pxRect(c, 4, 9, 20, 1, gold);
+    pxRect(c, 4, 14, 20, 1, '#fff0b0');
+    pxRect(c, 4, 18, 1, 6, gold2);
+    pxRect(c, 23, 18, 1, 6, gold2);
+    pxRect(c, 13, 12, 4, 5, gold2);
+    pxRect(c, 14, 13, 2, 2, gold);
+    pxRect(c, 14, 15, 2, 1, dark);
+    pxRect(c, 6, 15, 1, 1, '#fff7cf');
+    pxRect(c, 21, 16, 1, 1, '#ffe9a8');
+    pxRect(c, 6, 23, 3, 2, dark);
+    pxRect(c, 19, 23, 3, 2, dark);
+    pxCircle(c, 7, 8, 1.6, gold);
+    pxCircle(c, 21, 8, 1.2, gold2);
+    pxRect(c, 7, 7, 1, 1, '#fff7cf');
+    pxRect(c, 26, 18, 1, 1, gold);
+    pxRect(c, 2, 12, 1, 1, gold);
+  }
+
+  function artPotion(c) {
+    const line = '#3f6f73', glass = '#bfe9e4', light = '#f1fffb';
+    const cork = '#a9774c', cork2 = '#c99a6b';
+    const liquid = '#a56bff', liquid2 = '#ff7bc0';
+    pxCircle(c, 14, 18, 8, line);
+    pxCircle(c, 14, 18, 7, glass);
+    pxCircle(c, 14, 19, 5.6, liquid);
+    pxRect(c, 9, 17, 11, 2, liquid2);
+    pxRect(c, 10, 14, 2, 3, light);
+    pxRect(c, 11, 6, 6, 7, line);
+    pxRect(c, 12, 7, 4, 6, glass);
+    pxRect(c, 11, 3, 6, 4, cork);
+    pxRect(c, 12, 3, 4, 1, cork2);
+    pxRect(c, 10, 16, 4, 1, '#e8d7ff');
+    pxRect(c, 12, 19, 1, 1, '#ffffff');
+    pxRect(c, 16, 20, 1, 1, '#ffe9ff');
+    pxRect(c, 17, 17, 1, 1, '#ffffff');
+    pxRect(c, 14, 22, 1, 1, '#fff2b0');
+    pxRect(c, 20, 8, 1, 1, '#ffe9a8');
+    pxRect(c, 5, 14, 1, 1, '#fff2b0');
+    pxRect(c, 23, 21, 1, 1, '#ffd166');
+  }
+
+  function artCrown(c) {
+    const dark = '#9a6a12', gold = '#ffd166', gold2 = '#f2b33c', light = '#fff0b0';
+    pxTriUp(c, 3, 9, 8, 10, dark);
+    pxTriUp(c, 10, 5, 8, 14, dark);
+    pxTriUp(c, 17, 9, 8, 10, dark);
+    pxTriUp(c, 4, 10, 6, 9, gold);
+    pxTriUp(c, 11, 6, 6, 13, gold);
+    pxTriUp(c, 18, 10, 6, 9, gold);
+    pxCircle(c, 7, 9, 1.4, light);
+    pxCircle(c, 14, 5.5, 1.4, light);
+    pxCircle(c, 21, 9, 1.4, light);
+    pxRect(c, 4, 18, 20, 6, dark);
+    pxRect(c, 5, 18, 18, 5, gold);
+    pxRect(c, 5, 22, 18, 1, gold2);
+    pxRect(c, 6, 18, 4, 1, light);
+    pxCircle(c, 9, 20, 1.5, '#ff7b8a');
+    pxCircle(c, 14, 19, 2, '#7bb8ff');
+    pxCircle(c, 19, 20, 1.5, '#7fe3a8');
+    pxRect(c, 5, 7, 1, 1, light);
+    pxRect(c, 22, 6, 1, 1, light);
+    pxRect(c, 14, 2, 1, 1, '#fff7cf');
+  }
+
+  function artUnicorn(c) {
+    const line = '#8b7a6c', white = '#fff8ec', white2 = '#f3e6d5';
+    const pink = '#ffb3c7', horn = '#ffd166', horn2 = '#e2a92f';
+    const mane = ['#ff9fb3', '#ffd166', '#9fe0c8', '#a9c8ff', '#c7a6ff'];
+    for (let i = 0; i < 5; i++) {
+      pxRect(c, 4, 9 + i * 2, 3, 3, mane[i]);
+      pxRect(c, 3, 10 + i * 2, 2, 2, mane[i]);
+      pxRect(c, 6, 11 + i * 2, 1, 2, mane[i]);
+    }
+    pxTriUp(c, 10, 1, 8, 11, horn2);
+    pxTriUp(c, 11, 2, 6, 9, horn);
+    pxRect(c, 13, 2, 1, 6, '#fff0b0');
+    pxRect(c, 15, 5, 1, 3, horn2);
+    pxTriUp(c, 5, 6, 5, 6, line);
+    pxTriUp(c, 18, 6, 5, 6, line);
+    pxTriUp(c, 6, 7, 3, 4, white2);
+    pxTriUp(c, 19, 7, 3, 4, white2);
+    pxCircle(c, 14, 17, 9.5, line);
+    pxCircle(c, 14, 17, 8.4, white);
+    pxRect(c, 8, 9, 2, 2, mane[0]);
+    pxRect(c, 8, 11, 1, 1, mane[2]);
+    pxRect(c, 10, 14, 2, 3, '#42332b');
+    pxRect(c, 17, 14, 2, 3, '#42332b');
+    pxRect(c, 10, 14, 1, 1, '#fffaf0');
+    pxRect(c, 17, 14, 1, 1, '#fffaf0');
+    pxRect(c, 5, 18, 3, 1, pink);
+    pxRect(c, 20, 18, 3, 1, pink);
+    pxRect(c, 13, 18, 2, 1, pink);
+    pxRect(c, 12, 20, 1, 1, line);
+    pxRect(c, 15, 20, 1, 1, line);
+    pxRect(c, 13, 21, 2, 1, line);
+    pxRect(c, 24, 4, 1, 1, '#fff2b0');
+    pxRect(c, 3, 17, 1, 1, '#ffd166');
+  }
+
+  /* ================= 神话池：宏大奇幻构图（36×36） ================= */
+  function artPhoenix(c) {
+    const rings = ['#2b1a4a', '#462a66', '#723a78', '#a8476e', '#de6c53', '#ffb45f'];
+    for (let i = 0; i < rings.length; i++) {
+      pxCircle(c, 18, 17, 16 - i * 2.3, rings[i]);
+    }
+    pxCircle(c, 18, 17, 4.5, '#ffe9a8');
+    const gold = '#ffd166', light = '#fff0b8', orange = '#ff9a4d', red = '#ff5d6c';
+    const violet = '#b46bff', dark = '#3d1e45';
+
+    pxLine(c, 18, 25, 18, 34, red, 2);
+    pxLine(c, 18, 25, 13, 33, orange, 2);
+    pxLine(c, 18, 25, 23, 33, violet, 2);
+    pxLine(c, 18, 25, 15, 35, gold, 1);
+    pxLine(c, 18, 25, 21, 35, gold, 1);
+
+    for (let side = -1; side <= 1; side += 2) {
+      const featherCols = [gold, light, orange, red, violet];
+      for (let i = 0; i < 6; i++) {
+        const x = 18 + side * (4 + i * 2);
+        const y = 17 + Math.round(i * .7);
+        const ry = 6 - i * .7;
+        pxEllipse(c, x, y, 2.1, ry, featherCols[i % featherCols.length]);
+        pxRect(c, x, y - Math.round(ry), 1, 1, light);
+        pxRect(c, x, y + Math.round(ry), 1, 1, red);
+      }
+      pxLine(c, 18 + side * 4, 19, 18 + side * 14, 8, red, 2);
+      pxLine(c, 18 + side * 4, 20, 18 + side * 15, 13, orange, 2);
+      pxLine(c, 18 + side * 5, 20, 18 + side * 16, 18, gold, 1);
+      pxLine(c, 18 + side * 5, 20, 18 + side * 16, 27, orange, 2);
+      pxLine(c, 18 + side * 7, 17, 18 + side * 16, 20, gold, 1);
+      pxLine(c, 18 + side * 8, 15, 18 + side * 15, 15, light, 1);
+    }
+
+    pxEllipse(c, 18, 18, 4, 8, dark);
+    pxEllipse(c, 18, 18, 3, 7, gold);
+    pxEllipse(c, 18, 17, 1.4, 5, light);
+    pxCircle(c, 18, 9, 3.6, dark);
+    pxCircle(c, 18, 9, 2.8, gold);
+    pxRect(c, 20, 9, 3, 1, orange);
+    pxRect(c, 18, 8, 1, 1, dark);
+    pxRect(c, 18, 4, 1, 4, red);
+    pxRect(c, 16, 5, 1, 2, orange);
+    pxRect(c, 20, 5, 1, 2, violet);
+    pxRect(c, 17, 3, 1, 1, gold);
+    pxRect(c, 4, 6, 1, 1, light);
+    pxRect(c, 32, 9, 1, 1, light);
+    pxRect(c, 6, 28, 1, 1, gold);
+    pxRect(c, 31, 26, 1, 1, gold);
+    pxRect(c, 10, 4, 1, 1, '#ffffff');
+    pxRect(c, 27, 33, 1, 1, '#ffffff');
+  }
+
+  function artDragon(c) {
+    pxCircle(c, 18, 18, 16, '#241d4b');
+    pxCircle(c, 13, 14, 8, '#33265e');
+    pxCircle(c, 24, 23, 7, '#3c2a6b');
+    const stars = [[6, 5], [11, 3], [24, 4], [32, 6], [4, 17], [33, 17], [7, 31], [28, 32], [15, 30]];
+    for (let i = 0; i < stars.length; i++) {
+      pxRect(c, stars[i][0], stars[i][1], 1, 1, i % 2 ? '#ffe9a8' : '#bde9ff');
+    }
+    const pts = [[6, 27], [9, 24], [12, 26], [14, 21], [11, 18], [14, 14], [19, 15], [23, 11], [27, 10]];
+    const base = '#3c3a86', mid = '#6b5bd6', glow = '#8ff5e0';
+    for (let i = 0; i < pts.length - 1; i++) pxLine(c, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], base, 5);
+    for (let i = 0; i < pts.length - 1; i++) pxLine(c, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], mid, 3);
+    for (let i = 0; i < pts.length - 1; i++) pxLine(c, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], glow, 1);
+    pxCircle(c, 27, 10, 5, '#241d4b');
+    pxCircle(c, 27, 10, 4, '#6b5bd6');
+    pxRect(c, 29, 9, 4, 2, '#63b7f2');
+    pxRect(c, 30, 10, 1, 1, '#8ff5e0');
+    pxRect(c, 31, 9, 2, 1, '#ffd166');
+    pxRect(c, 29, 8, 1, 1, '#ffffff');
+    pxLine(c, 26, 7, 23, 3, '#ffd166', 1);
+    pxLine(c, 28, 7, 30, 3, '#ffd166', 1);
+    pxLine(c, 31, 11, 34, 13, '#ffd166', 1);
+    pxLine(c, 30, 12, 32, 16, '#8ff5e0', 1);
+    pxLine(c, 23, 8, 20, 5, '#ff9fb3', 1);
+    pxLine(c, 23, 10, 19, 10, '#8ff5e0', 1);
+    pxLine(c, 23, 12, 20, 15, '#ffd166', 1);
+    for (let i = 1; i < pts.length - 2; i += 2) {
+      const x = pts[i][0], y = pts[i][1];
+      pxRect(c, x + 2, y - 4, 1, 2, '#ffd166');
+      pxRect(c, x + 3, y - 5, 1, 2, '#ff9fb3');
+    }
+    for (let i = 1; i < pts.length - 1; i += 2) {
+      pxRect(c, pts[i][0], pts[i][1] - 1, 1, 1, '#ffd166');
+      pxRect(c, pts[i][0] + 1, pts[i][1], 1, 1, '#bde9ff');
+    }
+    pxLine(c, 12, 25, 9, 28, '#ffd166', 1);
+    pxLine(c, 12, 25, 13, 29, '#ffd166', 1);
+    pxLine(c, 23, 11, 22, 15, '#ffd166', 1);
+    pxLine(c, 23, 11, 25, 15, '#ffd166', 1);
+    pxRect(c, 4, 28, 2, 2, '#ffd166');
+    pxCircle(c, 33, 6, 1.5, '#ffd166');
+    pxRect(c, 33, 5, 1, 1, '#fff7cf');
+    pxRect(c, 18, 5, 1, 1, '#ffffff');
+    pxRect(c, 3, 9, 1, 1, '#ffd166');
+    pxRect(c, 34, 25, 1, 1, '#bde9ff');
+  }
+
+  function artGalaxy(c) {
+    pxCircle(c, 18, 18, 16, '#1e1842');
+    pxCircle(c, 18, 18, 12, '#2c2158');
+    pxCircle(c, 18, 18, 7, '#4a3388');
+    const cols = ['#ffd166', '#ff9fb3', '#a9c8ff', '#8ff5e0', '#d7b8ff', '#ffffff'];
+    for (let arm = 0; arm < 3; arm++) {
+      for (let i = 0; i < 50; i++) {
+        const t = i / 50;
+        const ang = arm * TAU / 3 + t * 4.4;
+        const rad = 1 + t * 11;
+        const x = 18 + Math.cos(ang) * rad;
+        const y = 18 + Math.sin(ang) * rad * .85;
+        pxRect(c, Math.round(x), Math.round(y), 1, 1, cols[(i + arm) % cols.length]);
+        if (i % 5 === 0) pxRect(c, Math.round(x) + 1, Math.round(y), 1, 1, cols[(i + arm) % cols.length]);
+      }
+    }
+    pxCircle(c, 18, 18, 3.6, '#ffe9a8');
+    pxCircle(c, 18, 18, 2.4, '#ffffff');
+    pxRect(c, 18, 14, 1, 9, '#fff6d0');
+    pxRect(c, 14, 18, 9, 1, '#fff6d0');
+    pxLine(c, 8, 7, 8, 10, '#ffffff', 1);
+    pxLine(c, 7, 8, 10, 8, '#ffffff', 1);
+    pxLine(c, 29, 25, 29, 28, '#ffe9a8', 1);
+    pxLine(c, 28, 26, 31, 26, '#ffe9a8', 1);
+    pxLine(c, 26, 6, 26, 9, '#a9c8ff', 1);
+    pxLine(c, 25, 7, 28, 7, '#a9c8ff', 1);
+    pxRect(c, 5, 18, 1, 1, '#ffffff');
+    pxRect(c, 31, 15, 1, 1, '#ff9fb3');
+    pxRect(c, 15, 32, 1, 1, '#d7b8ff');
+    pxRect(c, 21, 3, 1, 1, '#8ff5e0');
+  }
+
+  function artTree(c) {
+    pxCircle(c, 18, 18, 16.5, '#211a40');
+    const stars = [[5, 8], [12, 4], [27, 5], [32, 10], [4, 24], [33, 22], [9, 31], [28, 31]];
+    for (let i = 0; i < stars.length; i++) {
+      pxRect(c, stars[i][0], stars[i][1], 1, 1, i % 2 ? '#ffe9a8' : '#bde9ff');
+    }
+    pxCircle(c, 29, 7, 3, '#ffe9a8');
+    pxCircle(c, 30, 6, 3, '#211a40');
+    const greens = ['#2f6b5e', '#3d8a72', '#58b38a', '#86d6a2', '#c3efb7'];
+    for (let i = 0; i < 5; i++) pxCircle(c, 18, 14, 11.5 - i * 1.9, greens[i]);
+    const fruits = [[11, 8], [18, 5], [26, 9], [9, 15], [27, 15], [14, 20], [22, 19], [18, 12]];
+    for (let i = 0; i < fruits.length; i++) {
+      pxCircle(c, fruits[i][0], fruits[i][1], 1.2, i % 2 ? '#ffd166' : '#ffb3d9');
+      pxRect(c, fruits[i][0] - 1, fruits[i][1] - 1, 1, 1, '#fff6d0');
+    }
+    pxRect(c, 15, 22, 6, 10, '#6b4226');
+    pxRect(c, 16, 21, 4, 11, '#a86f45');
+    pxRect(c, 17, 22, 1, 8, '#c98a5a');
+    pxLine(c, 18, 23, 11, 18, '#a86f45', 1);
+    pxLine(c, 18, 23, 26, 18, '#a86f45', 1);
+    pxLine(c, 18, 25, 14, 21, '#c98a5a', 1);
+    pxLine(c, 17, 32, 11, 34, '#6b4226', 1);
+    pxLine(c, 18, 32, 18, 34, '#6b4226', 1);
+    pxLine(c, 19, 32, 25, 34, '#6b4226', 1);
+    pxLine(c, 15, 33, 13, 34, '#a86f45', 1);
+    pxLine(c, 21, 33, 23, 34, '#a86f45', 1);
+    pxRect(c, 6, 12, 1, 1, '#d7ffcf');
+    pxRect(c, 29, 12, 1, 1, '#d7ffcf');
+    pxRect(c, 18, 3, 1, 1, '#ffffff');
+  }
+
+  /* ================= 四档独立内容池 ================= */
+  function cardArt(draw, name, grid) {
+    return { draw: draw, name: name, grid: grid || 28 };
+  }
+
+  const poolCommon = {
+    arts: [
+      cardArt(artPencil, '铅笔'),
+      cardArt(artCup, '水杯'),
+      cardArt(artNote, '便签'),
+      cardArt(artLeaf, '叶子'),
+      cardArt(artBread, '面包'),
+      cardArt(artUmbrella, '雨伞'),
+      cardArt(artAlarm, '闹钟'),
+      cardArt(artPotato, '土豆')
+    ],
+    texts: [
+      '记得多喝水',
+      '午饭吃点好的',
+      '伸个懒腰吧',
+      '今天也要早点睡',
+      '摸鱼五分钟',
+      '出门记得带伞',
+      '冰箱里还有水果',
+      '把桌面收一收',
+      '慢慢吃完这顿饭',
+      '走去窗边晒晒太阳',
+      '别忘了回消息',
+      '今晚泡个热水澡'
+    ]
+  };
+
+  const poolRare = {
+    arts: [
+      cardArt(artGift, '礼物盒'),
+      cardArt(artCake, '小蛋糕'),
+      cardArt(artStar, '小星星'),
+      cardArt(artClover, '四叶草'),
+      cardArt(artCloud, '云朵')
+    ],
+    texts: [
+      '今天也辛苦了',
+      '慢慢来，没关系',
+      '你超棒的',
+      '小幸运正在路上',
+      '世界需要你',
+      '你值得被温柔对待',
+      '把烦恼先放一放',
+      '你已经很努力了',
+      '好事会发生在你身上',
+      '今天也会被好好爱着',
+      '别急，花会开',
+      '心里有光，哪里都亮'
+    ]
+  };
+
+  const poolLegendary = {
+    arts: [
+      cardArt(artBook, '魔法书'),
+      cardArt(artChest, '藏宝箱'),
+      cardArt(artPotion, '发光的药水瓶'),
+      cardArt(artCrown, '皇冠'),
+      cardArt(artUnicorn, '独角兽')
+    ],
+    texts: [
+      '好运正在派送中',
+      '你就是自己的光',
+      '今天一定会有好事发生',
+      '宇宙偏爱勇敢的你',
+      '所有美好都在向你赶来',
+      '你的愿望正在实现',
+      '被星星选中的一天',
+      '去做想做的事吧',
+      '幸运会敲响你的门',
+      '你值得世间所有偏爱',
+      '今天，世界为你让路',
+      '发光的人总会相遇'
+    ]
+  };
+
+  const poolMyth = {
+    arts: [
+      cardArt(artPhoenix, '展翅凤凰', 36),
+      cardArt(artDragon, '星河神龙', 36),
+      cardArt(artGalaxy, '银河星系', 36),
+      cardArt(artTree, '华丽神树', 36)
+    ],
+    texts: [
+      '世界因你而闪耀',
+      '星辰皆为你加冕',
+      '去成为你想成为的任何人',
+      '你是被宇宙选中的奇迹',
+      '银河为你倾倒',
+      '万物都将为你欢呼',
+      '你的名字写进了星光',
+      '以梦为马，奔赴山海',
+      '你就是自己的神话',
+      '宇宙把浪漫都给了你',
+      '让世界听见你的回声',
+      '此间万象，皆为你而来'
+    ]
+  };
+
+  const POOLS = {
+    normal: poolCommon,
+    rare: poolRare,
+    legendary: poolLegendary,
+    mythic: poolMyth
+  };
+
+  function prepareCardContent() {
+    const pool = POOLS[state.rarity] || poolCommon;
+    let art = pick(pool.arts);
+    if (pool.arts.length > 1 && art.name === state.lastArtName) {
+      // 强制重抽一次
+      art = pick(pool.arts);
+      // 若仍然相同，从其余图案中补抽，确保不会连续出同一基础图案
+      if (art.name === state.lastArtName) {
+        const others = pool.arts.filter(function (a) { return a.name !== state.lastArtName; });
+        if (others.length) art = pick(others);
+      }
+    }
+    state.lastArtName = art.name;
+    state.art = art;
+    let text = pick(pool.texts);
+    if (pool.texts.length > 1 && text === state.phrase) {
+      text = pool.texts[(pool.texts.indexOf(text) + 1) % pool.texts.length];
+    }
+    state.phrase = text;
+  }
+
+  function makeSkyStars() {
+    const arr = [];
+    const cols = ['#ffd166', '#ff9fb3', '#a9c8ff', '#8ff5e0', '#d7b8ff', '#ffffff'];
+    for (let i = 0; i < 22; i++) {
+      arr.push({
+        x: rand(.03, .97),
+        y: rand(.03, .97),
+        size: rand(2, 5),
+        sp: rand(.5, 1.4),
+        ph: rand(0, TAU),
+        color: pick(cols)
+      });
+    }
+    return arr;
+  }
+
+  /* ================= 稀有度装饰 ================= */
+  function drawRarityAura(ctx, cx, cy, artSize, rc) {
+    if (rc.key === 'normal') return;
+    const g = ctx.createRadialGradient(cx, cy, artSize * .18, cx, cy, artSize * .94);
+    g.addColorStop(0, hexA(rc.glow, .4));
+    g.addColorStop(.56, hexA(rc.glow, .18));
+    g.addColorStop(1, hexA(rc.glow, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, artSize * .94, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawRarityRings(ctx, cx, cy, artSize, rc) {
+    if (rc.key === 'normal') return;
+    ctx.save();
+    ctx.lineWidth = 1.6;
+    if (rc.key === 'rare') {
+      ctx.shadowColor = 'rgba(255,204,92,.85)';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = 'rgba(255,208,106,.92)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, artSize * .705, 0, TAU);
+      ctx.stroke();
+    } else if (rc.key === 'mythic') {
+      ctx.shadowColor = 'rgba(255,196,80,.9)';
+      ctx.shadowBlur = 16;
+      for (let i = 0; i < 22; i++) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, artSize * .715, i * TAU / 22, (i + 1) * TAU / 22 - .015);
+        ctx.strokeStyle = 'hsl(' + Math.round(i * 360 / 22) + ', 88%, 62%)';
+        ctx.stroke();
+      }
+    } else {
+      ctx.shadowColor = 'rgba(201,162,255,.85)';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgba(255,214,120,.82)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, artSize * .715, 0, TAU);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(201,162,255,.55)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, artSize * .585, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawRarityDecor(ctx, cx, cy, artSize) {
+    if (!state.decor.length) return;
+    for (let i = 0; i < state.decor.length; i++) {
+      const d = state.decor[i];
+      const x = cx + Math.cos(d.a) * d.rad * artSize;
+      const y = cy + Math.sin(d.a) * d.rad * artSize * .78;
+      const sz = artSize * d.size;
+      if (d.type === 'star') {
+        drawSparkle(ctx, x, y, sz, d.color, d.alpha);
+      } else if (d.type === 'heart') {
+        ctx.save();
+        ctx.globalAlpha = d.alpha;
+        drawHeart(ctx, x, y, sz, d.color);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.globalAlpha = d.alpha;
+        ctx.fillStyle = d.color;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(1, sz * .45), 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawRarityTag(ctx, cx, y) {
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    const fs = Math.max(9.5, Math.min(11, W * .027));
+    ctx.save();
+    ctx.font = '700 ' + fs + 'px ' + FONT;
+    const label = rc.name;
+    const tw = ctx.measureText(label).width;
+    const pw = tw + 36;
+    const ph = fs + 12;
+    const x = cx - pw / 2;
+    const top = y - ph / 2;
+
+    if (rc.key === 'mythic') {
+      const g = ctx.createLinearGradient(x, 0, x + pw, 0);
+      g.addColorStop(0, '#ffe7a1');
+      g.addColorStop(.5, '#ffc94b');
+      g.addColorStop(1, '#ffe28a');
+      roundRectPath(ctx, x, top, pw, ph, ph / 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.shadowColor = 'rgba(255,192,70,.9)';
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 1.4;
+      const rg = ctx.createLinearGradient(x, top, x + pw, top + ph);
+      rg.addColorStop(0, '#ff9f6e');
+      rg.addColorStop(.3, '#ffd166');
+      rg.addColorStop(.55, '#8fe3c9');
+      rg.addColorStop(.8, '#9fc8ff');
+      rg.addColorStop(1, '#ffb3d9');
+      ctx.strokeStyle = rg;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#5b3c08';
+      ctx.fillText(label, cx, y + .5);
+      drawSparkle(ctx, x + 9, y, 3.2, '#7a4d08', .8);
+      drawSparkle(ctx, x + pw - 9, y, 2.6, '#7a4d08', .65);
+    } else {
+      roundRectPath(ctx, x, top, pw, ph, ph / 2);
+      ctx.fillStyle = rc.tagBg;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = rc.tagBorder;
+      ctx.stroke();
+      ctx.fillStyle = rc.tagInk;
+      ctx.fillText(label, cx, y + .5);
+      if (rc.key !== 'normal') {
+        ctx.fillStyle = rc.tagBorder;
+        for (let s = -1; s <= 1; s += 2) {
+          const dx = s < 0 ? x + 8 : x + pw - 8;
+          ctx.beginPath();
+          ctx.moveTo(dx, y - 2.4);
+          ctx.lineTo(dx + 2.4, y);
+          ctx.lineTo(dx, y + 2.4);
+          ctx.lineTo(dx - 2.4, y);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ================= 底层卡片绘制 ================= */
+  function drawArt() {
+    const th = state.theme;
+    const ctx = artCtx;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 纸张
+    const paper = ctx.createLinearGradient(0, 0, W * .35, H);
+    paper.addColorStop(0, th.paper[0]);
+    paper.addColorStop(1, th.paper[1]);
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, W, H);
+
+    // 细纸纹
+    for (let i = 0; i < 150; i++) {
+      ctx.fillStyle = Math.random() < .5 ? 'rgba(150,120,88,.045)' : 'rgba(255,255,255,.55)';
+      ctx.fillRect(rand(0, W), rand(0, H), 1, 1);
+    }
+
+    // 顶部文字
+    const topFs = Math.max(8, W * .026);
+    ctx.font = '600 ' + topFs + 'px ' + FONT;
+    ctx.fillStyle = hexA(th.sub, .95);
+    spacedText(ctx, '今日份 · 小确幸', W / 2, H * .075, W * .009);
+
+    const artSize = Math.min(W * .54, H * .35);
+    const cx = W / 2, cy = H * .405;
+    const rc = RARITY[state.rarity] || RARITY.normal;
+
+    // 柔光底
+    const haloColor = rc.artHalo || th.artBg;
+    const haloR = artSize * .98;
+    const halo = ctx.createRadialGradient(cx, cy, haloR * .15, cx, cy, haloR);
+    halo.addColorStop(0, hexA(haloColor, 1));
+    halo.addColorStop(.62, hexA(haloColor, .82));
+    halo.addColorStop(1, hexA(haloColor, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(cx, cy, haloR, 0, TAU);
+    ctx.fill();
+
+    // 稀有度光晕与描边
+    drawRarityAura(ctx, cx, cy, artSize, rc);
+
+    // 虚线环
+    ctx.save();
+    ctx.setLineDash([2.5, 7]);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = hexA(rc.key === 'normal' ? th.sub : rc.color, .36);
+    ctx.beginPath();
+    ctx.arc(cx, cy, artSize * .66, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    drawRarityRings(ctx, cx, cy, artSize, rc);
+    drawRarityDecor(ctx, cx, cy, artSize);
+
+    // 像素图案（严格来自当前稀有度专属池）
+    const art = state.art || (POOLS[state.rarity] || poolCommon).arts[0];
+    const grid = art.grid || 28;
+    const pc = document.createElement('canvas');
+    pc.width = grid;
+    pc.height = grid;
+    art.draw(pc.getContext('2d'));
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pc, cx - artSize / 2, cy - artSize / 2, artSize, artSize);
+    ctx.restore();
+
+    // 小星芒
+    const sparkColor = rc.key === 'normal' ? th.sub : rc.glow;
+    drawSparkle(ctx, cx - artSize * .82, cy - artSize * .3, artSize * .055, sparkColor, .75);
+    drawSparkle(ctx, cx + artSize * .78, cy + artSize * .16, artSize * .038, sparkColor, .55);
+    drawSparkle(ctx, cx + artSize * .55, cy - artSize * .6, artSize * .028, sparkColor, .45);
+
+    // 主文案
+    const fs = clamp(W * .058, 15, 21);
+    ctx.font = '600 ' + fs + 'px ' + FONT;
+    ctx.fillStyle = th.ink;
+    const lines = wrapText(ctx, state.phrase, W * .76);
+    const lh = fs * 1.5;
+    const startY = H * .715 - (lines.length - 1) * lh / 2;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], W / 2, startY + i * lh);
+    }
+
+    // 稀有度标签
+    const tagY = startY + fs * 1.32 + 5;
+    drawRarityTag(ctx, W / 2, tagY);
+
+    // 分隔小心心
+    const hy = H * .845;
+    if (H > 340) {
+      const heartColor = rc.key === 'normal' ? th.accent : rc.color;
+      drawHeart(ctx, W / 2, hy, fs * .3, hexA(heartColor, .55));
+      ctx.fillStyle = hexA(heartColor, .28);
+      ctx.fillRect(W / 2 - 46, hy - .6, 26, 1.2);
+      ctx.fillRect(W / 2 + 20, hy - .6, 26, 1.2);
+    }
+
+    // 页脚
+    ctx.font = '500 ' + Math.max(8.5, W * .024) + 'px ' + FONT;
+    ctx.fillStyle = hexA(th.sub, .65);
+    spacedText(ctx, '把烦恼轻轻刮掉', W / 2, H * .945, W * .008);
+  }
+
+  /* ================= 灰色涂层绘制 ================= */
+  function drawCoat() {
+    const th = state.theme;
+    const ctx = coatCtx;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, W, H);
+
+    // 不透明底色（带一点暖调，不是死灰）
+    const base = ctx.createLinearGradient(0, 0, W * .8, H);
+    base.addColorStop(0, th.coat[0]);
+    base.addColorStop(.46, th.coat[1]);
+    base.addColorStop(1, th.coat[2]);
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, W, H);
+
+    // 斜向细纹
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-.42);
+    const span = Math.hypot(W, H) * 1.2;
+    ctx.fillStyle = 'rgba(255,255,255,.085)';
+    for (let x = -span; x < span; x += 7) ctx.fillRect(x, -span / 2, 1, span);
+    ctx.restore();
+
+    // 大面柔光
+    const gx = W * .22, gy = H * .12;
+    const sheen = ctx.createRadialGradient(gx, gy, 0, gx, gy, W * 1.15);
+    sheen.addColorStop(0, 'rgba(255,255,255,.6)');
+    sheen.addColorStop(.42, 'rgba(255,255,255,.08)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(0, 0, W, H);
+
+    // 涂层颗粒
+    for (let i = 0; i < 820; i++) {
+      const x = rand(0, W), y = rand(0, H);
+      ctx.fillStyle = Math.random() < .5
+        ? 'rgba(110,92,66,' + rand(.04, .11).toFixed(3) + ')'
+        : 'rgba(255,250,235,' + rand(.06, .15).toFixed(3) + ')';
+      if (Math.random() < .82) ctx.fillRect(x, y, 1, 1);
+      else ctx.fillRect(x, y, 2, 2);
+    }
+
+    // 金箔亮点
+    for (let i = 0; i < 24; i++) {
+      const x = rand(W * .05, W * .95), y = rand(H * .05, H * .95);
+      ctx.fillStyle = hexA(th.accent, rand(.05, .14));
+      ctx.beginPath();
+      ctx.arc(x, y, rand(1, 2.4), 0, TAU);
+      ctx.fill();
+    }
+
+    // 边缘压暗
+    const edgeV = ctx.createLinearGradient(0, 0, 0, H);
+    edgeV.addColorStop(0, 'rgba(112,94,68,.16)');
+    edgeV.addColorStop(.13, 'rgba(112,94,68,0)');
+    edgeV.addColorStop(.87, 'rgba(112,94,68,0)');
+    edgeV.addColorStop(1, 'rgba(112,94,68,.17)');
+    ctx.fillStyle = edgeV;
+    ctx.fillRect(0, 0, W, H);
+
+    const edgeH = ctx.createLinearGradient(0, 0, W, 0);
+    edgeH.addColorStop(0, 'rgba(112,94,68,.14)');
+    edgeH.addColorStop(.1, 'rgba(112,94,68,0)');
+    edgeH.addColorStop(.9, 'rgba(112,94,68,0)');
+    edgeH.addColorStop(1, 'rgba(112,94,68,.16)');
+    ctx.fillStyle = edgeH;
+    ctx.fillRect(0, 0, W, H);
+
+    // 中央徽章
+    const cx = W / 2, cy = H * .47;
+    const badgeR = Math.min(W, H) * .215;
+    ctx.save();
+    ctx.setLineDash([3, 7]);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(255,252,242,.6)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, badgeR, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    drawSparkle(ctx, cx, cy - badgeR * .78, 5, 'rgba(255,250,238,.85)', .9);
+    drawSparkle(ctx, cx - badgeR * .82, cy + badgeR * .1, 3, 'rgba(255,250,238,.7)', .8);
+    drawSparkle(ctx, cx + badgeR * .82, cy + badgeR * .24, 3.5, 'rgba(255,250,238,.7)', .8);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = hexA(th.coatInk, .82);
+    const bigFs = Math.min(W, H) * .105;
+    ctx.font = '600 ' + bigFs + 'px ' + FONT;
+    spacedText(ctx, '刮 开 我', cx, cy - bigFs * .04, bigFs * .05);
+
+    ctx.font = '500 ' + Math.max(8.5, W * .023) + 'px ' + FONT;
+    ctx.fillStyle = hexA(th.coatInk, .55);
+    spacedText(ctx, 'SCRATCH HERE', cx, cy + bigFs * .62, W * .0045);
+
+    // 底部提示
+    ctx.font = '500 ' + Math.max(9, W * .026) + 'px ' + FONT;
+    ctx.fillStyle = hexA(th.coatInk, .48);
+    ctx.fillText('按住滑动 · 刮开 60% 有惊喜', cx, H * .9);
+  }
+
+  /* ================= 柔和渐变背景 ================= */
+  const blobs = [
+    { x: .14, y: .26, r: .46, speed: .11, ph: 0, ci: 0 },
+    { x: .84, y: .2, r: .36, speed: .08, ph: 2.1, ci: 1 },
+    { x: .26, y: .86, r: .4, speed: .07, ph: 4.2, ci: 2 },
+    { x: .8, y: .8, r: .34, speed: .1, ph: 1.3, ci: 0 }
+  ];
+
+  const specks = [];
+  for (let i = 0; i < 30; i++) {
+    specks.push({ x: Math.random(), y: Math.random(), r: rand(1, 2.3), ph: rand(0, TAU), sp: rand(.3, 1.1) });
+  }
+
+  function drawBG(time) {
+    const th = state.theme;
+    const ctx = bgCtx;
+    const g = ctx.createLinearGradient(0, 0, vw * .85, vh);
+    g.addColorStop(0, th.sky[0]);
+    g.addColorStop(.52, th.sky[1]);
+    g.addColorStop(1, th.sky[2]);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, vw, vh);
+
+    const m = Math.min(vw, vh);
+    for (let i = 0; i < blobs.length; i++) {
+      const b = blobs[i];
+      const x = (b.x + Math.sin(time * b.speed + b.ph) * .05) * vw;
+      const y = (b.y + Math.cos(time * b.speed * .9 + b.ph) * .045) * vh;
+      const rad = b.r * m;
+      const rg = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      rg.addColorStop(0, th.blob[b.ci]);
+      rg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.arc(x, y, rad, 0, TAU);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < specks.length; i++) {
+      const s = specks[i];
+      const a = .12 + .22 * (.5 + .5 * Math.sin(time * s.sp + s.ph));
+      ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(s.x * vw, s.y * vh, s.r, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  /* ================= 卡片外的小标签 ================= */
+  function drawChrome() {
+    const ctx = fxCtx;
+    const r = cardRect;
+    if (!r.width) return;
+    const cx = r.left + r.width / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const topY = r.top - 30;
+    if (topY > 54) {
+      const label = '今天也要开心呀';
+      ctx.font = '600 12px ' + FONT;
+      const tw = ctx.measureText(label).width;
+      const pw = tw + 44, ph = 27;
+      ctx.save();
+      ctx.shadowColor = 'rgba(120,90,60,.18)';
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      roundRectPath(ctx, cx - pw / 2, topY - ph / 2, pw, ph, ph / 2);
+      ctx.fillStyle = 'rgba(255,253,247,.88)';
+      ctx.fill();
+      ctx.restore();
+      drawSparkle(ctx, cx - pw / 2 + 13, topY, 4, state.theme.accent, .8);
+      drawSparkle(ctx, cx + pw / 2 - 13, topY, 4, state.theme.accent, .8);
+      ctx.fillStyle = hexA(state.theme.ink, .82);
+      ctx.font = '600 12px ' + FONT;
+      ctx.fillText(label, cx, topY + .5);
+    }
+
+    ctx.restore();
+  }
+
+  /* ================= 涂层上的流动光泽 ================= */
+  function drawCardSheen(now) {
+    const r = cardRect;
+    if (!r.width) return;
+    const cycle = 7200;
+    const t = (now % cycle) / cycle;
+    if (t > .34) return;
+    const k = t / .34;
+    const ctx = fxCtx;
+    const x = r.left + (-.35 + k * 1.7) * r.width;
+    const band = r.width * .42;
+    ctx.save();
+    roundRectPath(ctx, r.left, r.top, r.width, r.height, 20);
+    ctx.clip();
+    const g = ctx.createLinearGradient(x - band, r.top, x + band, r.top + r.height * .2);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(.46, 'rgba(255,255,255,.17)');
+    g.addColorStop(.54, 'rgba(255,255,255,.17)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(r.left - 20, r.top - 20, r.width + 40, r.height + 40);
+    ctx.restore();
+  }
+
+  /* ================= 彩色小粒子 ================= */
+  function particlePalette() {
+    const th = state.theme;
+    return [th.accent, '#ffd97a', '#ffffff', '#ffb7c5', th.coat[0]];
+  }
+
+  function spawnScratchParticles(x, y, n) {
+    const r = cardRect;
+    const sx = r.left + x * (r.width / Math.max(1, W));
+    const sy = r.top + y * (r.height / Math.max(1, H));
+    const palette = particlePalette();
+    for (let i = 0; i < n; i++) {
+      particles.push({
+        x: sx + rand(-5, 5),
+        y: sy + rand(-5, 5),
+        vx: rand(-75, 75),
+        vy: rand(-120, -20),
+        g: rand(220, 380),
+        life: 1,
+        decay: rand(1.8, 2.7),
+        size: rand(2, 4.2),
+        color: pick(palette),
+        rot: rand(0, TAU),
+        vr: rand(-10, 10),
+        square: Math.random() < .55
+      });
+    }
+  }
+
+  function confettiBurst(count) {
+    if (!count) return;
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    const r = cardRect;
+    const cx = r.left + r.width / 2, cy = r.top + r.height * .45;
+    const cols = rc.deco.concat([state.theme.accent, '#fff6e6']);
+    const mythic = state.rarity === 'mythic';
+    const slow = mythic ? .72 : 1;
+    for (let i = 0; i < count; i++) {
+      const a = rand(-Math.PI, 0);
+      const sp = rand(150, 430) * slow;
+      particles.push({
+        x: cx + rand(-30, 30),
+        y: cy + rand(-20, 20),
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - rand(20, 120) * slow,
+        g: rand(420, 620) * (mythic ? .55 : 1),
+        life: 1,
+        decay: rand(.55, .9) * (mythic ? .7 : 1),
+        size: rand(4, 9) * (mythic ? 1.12 : 1),
+        color: pick(cols),
+        rot: rand(0, TAU),
+        vr: rand(-12, 12),
+        square: true
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vy += p.g * dt;
+      p.vx *= 1 - 2.2 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.rot += p.vr * dt;
+      p.life -= p.decay * dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function drawParticles(ctx) {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      ctx.save();
+      ctx.globalAlpha = clamp(p.life, 0, 1);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if (p.square) {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * .7);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size * .5, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /* ================= 刮开后的鼓励语 ================= */
+  function drawBanner(now) {
+    if (!state.reveal || !state.cheer) return;
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    const timing = RARITY_TIMING[state.rarity] || RARITY_TIMING.normal;
+    const el = now - state.revealAt;
+    if (el < timing.bannerDelay) return;
+    const fadeOut = 1 - clamp((el - (timing.swap - 280)) / 460, 0, 1);
+    if (fadeOut <= 0) return;
+    const t = clamp((el - timing.bannerDelay) / timing.bannerPop, 0, 1);
+    const pop = easeOutBack(t);
+    const ctx = fxCtx;
+    const r = cardRect;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height * .47;
+    const bw = Math.min(r.width * .86, 296);
+    const bh = Math.min(118, r.height * .26);
+    const accent = rc.key === 'normal' ? state.theme.accent : rc.color;
+    ctx.save();
+    ctx.globalAlpha = fadeOut * clamp(el / 420, 0, 1);
+    ctx.translate(cx, cy);
+    ctx.scale(pop, pop);
+    ctx.shadowColor = 'rgba(92,62,42,.3)';
+    ctx.shadowBlur = 26;
+    ctx.shadowOffsetY = 10;
+    roundRectPath(ctx, -bw / 2, -bh / 2, bw, bh, 22);
+    ctx.fillStyle = 'rgba(255,253,247,.97)';
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    roundRectPath(ctx, -bw / 2, -bh / 2, bw, bh, 22);
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = hexA(accent, .5);
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = hexA(accent, .95);
+    ctx.font = '600 10.5px ' + FONT;
+    const topLabel = rc.key === 'normal' ? '惊 喜 解 锁' : rc.name + ' · 惊 喜 解 锁';
+    spacedText(ctx, topLabel, 0, -bh / 2 + 19, 2);
+
+    ctx.fillStyle = state.theme.ink;
+    ctx.font = '700 ' + Math.min(20, bw * .072) + 'px ' + FONT;
+    ctx.fillText(state.cheer, 0, 0);
+
+    ctx.fillStyle = 'rgba(140,118,98,.7)';
+    ctx.font = '500 11px ' + FONT;
+    ctx.fillText('已解锁 · 下一张小卡正在赶来…', 0, bh / 2 - 22);
+
+    drawHeart(ctx, -bw / 2 + 22, 2, 6, hexA(accent, .35));
+    drawHeart(ctx, bw / 2 - 22, 2, 6, hexA(accent, .35));
+    ctx.restore();
+  }
+
+  /* ================= 稀有度动态光效 ================= */
+  function drawRarityFX(now) {
+    if (!state.reveal) return;
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    if (rc.key === 'normal' || rc.key === 'rare') return;
+    const r = cardRect;
+    if (!r.width) return;
+    const timing = RARITY_TIMING[state.rarity];
+    const el = now - state.revealAt;
+    const tIn = clamp((el - 120) / 650, 0, 1);
+    const fadeOut = 1 - clamp((el - (timing.swap - 300)) / 500, 0, 1);
+    const alpha = tIn * fadeOut;
+    if (alpha <= 0) return;
+
+    const k = r.width / Math.max(1, W);
+    const artSize = Math.min(W * .54, H * .35) * k;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height * .405;
+    const ctx = fxCtx;
+    const t = now / 1000;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // 神话：全屏彩虹渐变 + 动态光芒 + 全屏星点
+    if (rc.key === 'mythic') {
+      const hue = (now / 26) % 360;
+      const sky = ctx.createLinearGradient(0, 0, vw, vh);
+      for (let i = 0; i <= 5; i++) {
+        sky.addColorStop(i / 5, 'hsla(' + ((hue + i * 55) % 360) + ', 92%, 68%, .16)');
+      }
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, vw, vh);
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * .16);
+      for (let i = 0; i < 8; i++) {
+        ctx.save();
+        ctx.rotate(i * TAU / 8);
+        const beam = ctx.createLinearGradient(0, 0, 0, -Math.max(vw, vh));
+        beam.addColorStop(0, 'rgba(255,246,200,.18)');
+        beam.addColorStop(.55, 'rgba(255,236,160,.07)');
+        beam.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(2, -Math.max(vw, vh));
+        ctx.lineTo(-2, -Math.max(vw, vh));
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      for (let i = 0; i < state.skyStars.length; i++) {
+        const s = state.skyStars[i];
+        const sa = .2 + .8 * Math.abs(Math.sin(t * .64 * s.sp + s.ph));
+        drawSparkle(ctx, s.x * vw, s.y * vh, s.size, s.color, sa);
+      }
+    }
+
+    for (let i = 0; i < rc.halo; i++) {
+      const rad = artSize * (rc.halo === 1 ? .69 : (i === 0 ? .62 : .745));
+      const dir = i === 0 ? 1 : -1;
+      const cols = rc.haloColors && rc.haloColors.length ? rc.haloColors : [rc.color, rc.color];
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * .22 * dir + i * 1.1);
+      ctx.shadowColor = rc.glow;
+      ctx.shadowBlur = i === 0 ? 16 : 10;
+      const g = ctx.createLinearGradient(-rad, -rad, rad, rad);
+      for (let j = 0; j < cols.length; j++) g.addColorStop(j / (cols.length - 1), cols[j]);
+      ctx.strokeStyle = g;
+      ctx.lineWidth = i === 0 ? 2 : 1.2;
+      ctx.setLineDash(i === 0 ? [rad * 1.15, rad * .38] : [rad * .5, rad * .3]);
+      ctx.lineDashOffset = -t * 18 * dir;
+      ctx.beginPath();
+      ctx.arc(0, 0, rad, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (let i = 0; i < state.twinkles.length; i++) {
+      const tw = state.twinkles[i];
+      const a = tw.a + t * .12;
+      const x = cx + Math.cos(a) * artSize * tw.rad;
+      const y = cy + Math.sin(a) * artSize * tw.rad * .72;
+      const sa = .25 + .75 * Math.abs(Math.sin(t * 1.7 * tw.sp + tw.ph));
+      drawSparkle(ctx, x, y, artSize * tw.size, tw.color, sa);
+    }
+
+    if (rc.key === 'mythic') {
+      const hue = (now / 20) % 360;
+      const gx = ctx.createLinearGradient(r.left, r.top, r.right, r.bottom);
+      for (let i = 0; i <= 6; i++) {
+        gx.addColorStop(i / 6, 'hsl(' + ((hue + i * 52) % 360) + ', 92%, 68%)');
+      }
+      ctx.shadowColor = 'rgba(255,200,90,.85)';
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = gx;
+      roundRectPath(ctx, r.left + 2, r.top + 2, r.width - 4, r.height - 4, 19);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,249,224,.75)';
+      roundRectPath(ctx, r.left + 5, r.top + 5, r.width - 10, r.height - 10, 16);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGoldFlash(now) {
+    if (!state.reveal) return;
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    if (!rc.flash) return;
+    const el = now - state.revealAt;
+    const dur = state.rarity === 'mythic' ? 760 : 460;
+    if (el > dur) return;
+    const p = el / dur;
+    const a = clamp(p < .18 ? p / .18 : 1 - (p - .18) / .82, 0, 1) * rc.flash;
+    const r = cardRect;
+    const cx = r.left + r.width / 2, cy = r.top + r.height * .45;
+    const ctx = fxCtx;
+    ctx.fillStyle = 'rgba(255,214,130,' + (a * .34) + ')';
+    ctx.fillRect(0, 0, vw, vh);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(vw, vh) * .72);
+    g.addColorStop(0, 'rgba(255,244,200,' + a + ')');
+    g.addColorStop(.55, 'rgba(255,214,120,' + (a * .8) + ')');
+    g.addColorStop(1, 'rgba(255,196,80,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, vw, vh);
+  }
+
+  function renderFX(now) {
+    const ctx = fxCtx;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, vw, vh);
+    drawCardSheen(now);
+    drawRarityFX(now);
+    drawParticles(ctx);
+    drawChrome();
+    drawBanner(now);
+    drawGoldFlash(now);
+  }
+
+  /* ================= 刮擦与进度检测 ================= */
+  const probe = document.createElement('canvas');
+  probe.width = 52;
+  probe.height = 68;
+  const probeCtx = probe.getContext('2d', { willReadFrequently: true });
+
+  function coverage() {
+    probeCtx.clearRect(0, 0, probe.width, probe.height);
+    probeCtx.drawImage(coatCv, 0, 0, probe.width, probe.height);
+    const data = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+    let clear = 0;
+    const total = probe.width * probe.height;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] < 100) clear++;
+    }
+    return clear / total;
+  }
+
+  function stamp(x, y) {
+    const ctx = coatCtx;
+    ctx.save();
+    // 关键：用 destination-out 「挖洞」，而不是涂颜色
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = '#000';
+    const r = rand(21, 26);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.arc(x + rand(-13, 13), y + rand(-13, 13), rand(11, 17), 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function beginScratch(x, y) {
+    if (!state.scratchable) return;
+    state.drawing = true;
+    state.last = { x: x, y: y };
+    state.lastMoveAt = 0;
+    state.pending = null;
+    stamp(x, y);
+    spawnScratchParticles(x, y, 5);
+    checkProgress();
+  }
+
+  function moveScratch(x, y) {
+    if (!state.drawing || !state.scratchable) return;
+    const last = state.last || { x: x, y: y };
+    const dx = x - last.x, dy = y - last.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 240) {
+      state.last = { x: x, y: y };
+      return;
+    }
+    const n = Math.max(1, Math.ceil(dist / 5));
+    for (let i = 1; i <= n; i++) {
+      const px = last.x + dx * i / n;
+      const py = last.y + dy * i / n;
+      stamp(px, py);
+      if (i % 2 === 0) spawnScratchParticles(px, py, 1);
+    }
+    state.last = { x: x, y: y };
+    checkProgress();
+  }
+
+  function checkProgress(force) {
+    if (!state.scratchable) return;
+    const now = performance.now();
+    if (!force && now - state.lastCheck < 120) return;
+    state.lastCheck = now;
+    state.progress = coverage();
+    if (state.progress >= .6) beginReveal();
+  }
+
+  /* ================= 收尾动画与换卡 ================= */
+  function beginReveal() {
+    if (state.reveal) return;
+    state.reveal = true;
+    state.scratchable = false;
+    state.drawing = false;
+    state.revealAt = performance.now();
+    state.cheer = pick(CHEERS);
+    const snap = document.createElement('canvas');
+    snap.width = coatCv.width;
+    snap.height = coatCv.height;
+    snap.getContext('2d').drawImage(coatCv, 0, 0);
+    state.snap = snap;
+    card.classList.add('reveal');
+
+    const rc = RARITY[state.rarity] || RARITY.normal;
+    state.stats.total++;
+    if (rc.key !== 'normal') state.stats[rc.key]++;
+    recordPattern();
+    confettiBurst(rc.burst);
+  }
+
+  function updateReveal(now) {
+    if (!state.reveal) return;
+    const timing = RARITY_TIMING[state.rarity] || RARITY_TIMING.normal;
+    const el = now - state.revealAt;
+    if (state.snap) {
+      const t = clamp(el / timing.fade, 0, 1);
+      const ctx = coatCtx;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1 - easeInOut(t);
+      ctx.clearRect(0, 0, coatCv.width, coatCv.height);
+      ctx.drawImage(state.snap, 0, 0);
+      ctx.restore();
+      if (t >= 1) state.snap = null;
+    }
+    if (el > timing.swap && !state.swapping) {
+      state.swapping = true;
+      card.classList.add('swap');
+    }
+    if (el > timing.next) {
+      newCard();
+    }
+  }
+
+  function newCard() {
+    card.classList.remove('reveal', 'swap');
+    state.reveal = false;
+    state.snap = null;
+    state.swapping = false;
+    state.index = (state.index + 1) % THEMES.length;
+    state.theme = THEMES[state.index];
+    state.cheer = '';
+    state.rarity = rollRarity();
+    prepareCardContent();
+    state.decor = makeDecor(state.rarity);
+    state.twinkles = makeTwinkles(state.rarity);
+    state.skyStars = state.rarity === 'mythic' ? makeSkyStars() : [];
+    card.dataset.rarity = state.rarity;
+    state.drawing = false;
+    state.last = null;
+    state.lastMoveAt = 0;
+    state.progress = 0;
+    state.lastCheck = 0;
+    drawArt();
+    drawCoat();
+    state.scratchable = true;
+  }
+
+  /* ================= 基础图案图鉴 ================= */
+  const ALBUM_KEY = 'scratchCardAlbum.v1';
+  const ALBUM_RARITY_KEYS = ['normal', 'rare', 'legendary', 'mythic'];
+  const TOTAL_PATTERNS = ALBUM_RARITY_KEYS.reduce(function (sum, k) {
+    return sum + POOLS[k].arts.length;
+  }, 0);
+  const albumData = Object.create(null);
+  const albumCells = Object.create(null);
+  const albumSectionCounts = Object.create(null);
+
+  function patternKey(rarity, name) {
+    return rarity + ':' + name;
+  }
+
+  function loadAlbumData() {
+    try {
+      const raw = localStorage.getItem(ALBUM_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') return;
+      Object.keys(data).forEach(function (key) {
+        const item = data[key];
+        if (!item) return;
+        const count = Math.max(0, Number(item.count) || 0);
+        const lit = !!item.lit || count > 0;
+        if (lit || count > 0) albumData[key] = { lit: lit, count: count };
+      });
+    } catch (e) {}
+  }
+
+  function saveAlbumData() {
+    try {
+      localStorage.setItem(ALBUM_KEY, JSON.stringify(albumData));
+    } catch (e) {}
+  }
+
+  function makePatternCanvas(art) {
+    const grid = art.grid || 28;
+    const src = document.createElement('canvas');
+    src.width = grid;
+    src.height = grid;
+    art.draw(src.getContext('2d'));
+    const out = document.createElement('canvas');
+    out.width = 160;
+    out.height = 160;
+    const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  function updateAlbumCell(key) {
+    const item = albumCells[key];
+    if (!item) return;
+    const rec = albumData[key];
+    const lit = !!(rec && (rec.lit || rec.count > 0));
+    item.cell.classList.toggle('lit', lit);
+    item.nameEl.textContent = lit ? item.artName : '？？？';
+    item.countEl.textContent = lit ? ('已刮出 ' + rec.count + ' 次') : '未点亮';
+  }
+
+  function updateAlbumTotals() {
+    let litTotal = 0;
+    ALBUM_RARITY_KEYS.forEach(function (rarity) {
+      let lit = 0;
+      POOLS[rarity].arts.forEach(function (art) {
+        const rec = albumData[patternKey(rarity, art.name)];
+        if (rec && (rec.lit || rec.count > 0)) lit++;
+      });
+      litTotal += lit;
+      const sec = albumSectionCounts[rarity];
+      if (sec) sec.textContent = lit + ' / ' + POOLS[rarity].arts.length;
+    });
+    const text = litTotal + ' / ' + TOTAL_PATTERNS;
+    if (galleryCount) galleryCount.textContent = text;
+    if (albumSummary) albumSummary.textContent = '已收集图鉴 ' + text;
+  }
+
+  function renderAlbum() {
+    if (!albumBody) return;
+    albumBody.innerHTML = '';
+    ALBUM_RARITY_KEYS.forEach(function (rarity) {
+      const rc = RARITY[rarity];
+      const section = document.createElement('div');
+      section.className = 'album-section';
+      section.dataset.rarity = rarity;
+
+      const head = document.createElement('div');
+      head.className = 'album-sec-head';
+      const dot = document.createElement('span');
+      dot.className = 'rarity-dot';
+      const name = document.createElement('span');
+      name.className = 'sec-name';
+      name.textContent = rc.name;
+      const sub = document.createElement('span');
+      sub.className = 'sec-sub';
+      sub.textContent = rarity === 'normal' ? '日常小物'
+        : rarity === 'rare' ? '精致小确幸'
+        : rarity === 'legendary' ? '魔法与好运'
+        : '宏大与宿命';
+      const count = document.createElement('span');
+      count.className = 'sec-count';
+      head.appendChild(dot);
+      head.appendChild(name);
+      head.appendChild(sub);
+      head.appendChild(count);
+
+      const grid = document.createElement('div');
+      grid.className = 'album-grid';
+
+      POOLS[rarity].arts.forEach(function (art) {
+        const key = patternKey(rarity, art.name);
+        const cell = document.createElement('div');
+        cell.className = 'album-cell';
+        cell.dataset.key = key;
+
+        const frame = document.createElement('div');
+        frame.className = 'cell-frame';
+        frame.appendChild(makePatternCanvas(art));
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'cell-name';
+        const countEl = document.createElement('div');
+        countEl.className = 'cell-count';
+
+        cell.appendChild(frame);
+        frame.appendChild(countEl);
+        cell.appendChild(nameEl);
+        grid.appendChild(cell);
+
+        albumCells[key] = {
+          rarity: rarity,
+          artName: art.name,
+          cell: cell,
+          nameEl: nameEl,
+          countEl: countEl
+        };
+      });
+
+      section.appendChild(head);
+      section.appendChild(grid);
+      albumBody.appendChild(section);
+      albumSectionCounts[rarity] = count;
+    });
+
+    ALBUM_RARITY_KEYS.forEach(function (rarity) {
+      POOLS[rarity].arts.forEach(function (art) {
+        updateAlbumCell(patternKey(rarity, art.name));
+      });
+    });
+    updateAlbumTotals();
+  }
+
+  function recordPattern() {
+    if (!state.art) return;
+    const key = patternKey(state.rarity, state.art.name);
+    const rec = albumData[key] || { lit: false, count: 0 };
+    rec.lit = true;
+    rec.count = (rec.count || 0) + 1;
+    albumData[key] = rec;
+    saveAlbumData();
+    updateAlbumCell(key);
+    updateAlbumTotals();
+  }
+
+  function openAlbum() {
+    updateAlbumTotals();
+    albumEl.classList.add('open');
+    albumEl.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeAlbum() {
+    if (!albumEl.classList.contains('open')) return;
+    albumEl.classList.remove('open');
+    albumEl.setAttribute('aria-hidden', 'true');
+  }
+
+  function initAlbum() {
+    loadAlbumData();
+    renderAlbum();
+    updateAlbumTotals();
+  }
+
+  /* ================= 尺寸与重建 ================= */
+  function layoutNow() {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    sizeBacking(bgCv, vw, vh);
+    sizeBacking(fxCv, vw, vh);
+    W = Math.max(1, inner.clientWidth);
+    H = Math.max(1, inner.clientHeight);
+    sizeBacking(artCv, W, H);
+    sizeBacking(coatCv, W, H);
+    cardRect = coatCv.getBoundingClientRect();
+  }
+
+  function rebuild() {
+    state.snap = null;
+    state.reveal = false;
+    state.swapping = false;
+    state.drawing = false;
+    state.last = null;
+    state.lastMoveAt = 0;
+    state.lastCheck = 0;
+    state.progress = 0;
+    state.cheer = '';
+    card.classList.remove('reveal', 'swap');
+    if (state.index < 0) state.index = 0;
+    state.theme = THEMES[state.index];
+    if (!state.rarity || !state.art || !state.phrase) {
+      if (!state.rarity) state.rarity = rollRarity();
+      prepareCardContent();
+      state.decor = makeDecor(state.rarity);
+      state.twinkles = makeTwinkles(state.rarity);
+      state.skyStars = state.rarity === 'mythic' ? makeSkyStars() : [];
+    }
+    card.dataset.rarity = state.rarity;
+    drawArt();
+    drawCoat();
+    state.scratchable = true;
+  }
+
+  let resizeTimer = 0;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      layoutNow();
+      rebuild();
+    }, 120);
+  }
+
+  /* ================= 输入事件 ================= */
+  let lastTouchAt = -10000;
+
+  function ensureRect() {
+    cardRect = coatCv.getBoundingClientRect();
+  }
+
+  function pointFrom(clientX, clientY) {
+    const r = cardRect;
+    return {
+      x: (clientX - r.left) * (W / Math.max(1, r.width)),
+      y: (clientY - r.top) * (H / Math.max(1, r.height))
+    };
+  }
+
+  function onMouseDown(e) {
+    if (!state.scratchable || e.button !== 0) return;
+    if (performance.now() - lastTouchAt < 700) return;
+    e.preventDefault();
+    ensureRect();
+    const p = pointFrom(e.clientX, e.clientY);
+    beginScratch(p.x, p.y);
+  }
+
+  function onMouseMove(e) {
+    if (!state.drawing) return;
+    if (e.buttons === 0) {
+      onMouseUp();
+      return;
+    }
+    const p = pointFrom(e.clientX, e.clientY);
+    const now = performance.now();
+    if (now - state.lastMoveAt < 16) {
+      state.pending = p;
+      return;
+    }
+    state.lastMoveAt = now;
+    state.pending = null;
+    moveScratch(p.x, p.y);
+  }
+
+  function flushPending() {
+    if (state.drawing && state.pending) {
+      const p = state.pending;
+      state.pending = null;
+      moveScratch(p.x, p.y);
+    }
+  }
+
+  function onMouseUp() {
+    const wasDrawing = state.drawing;
+    flushPending();
+    state.drawing = false;
+    state.pending = null;
+    state.last = null;
+    if (wasDrawing) checkProgress(true);
+  }
+
+  function onTouchStart(e) {
+    if (!state.scratchable) return;
+    e.preventDefault();
+    lastTouchAt = performance.now();
+    ensureRect();
+    const t = e.touches[0];
+    if (!t) return;
+    const p = pointFrom(t.clientX, t.clientY);
+    beginScratch(p.x, p.y);
+  }
+
+  function onTouchMove(e) {
+    if (!state.drawing) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    if (!t) return;
+    const p = pointFrom(t.clientX, t.clientY);
+    const now = performance.now();
+    if (now - state.lastMoveAt < 16) {
+      state.pending = p;
+      return;
+    }
+    state.lastMoveAt = now;
+    state.pending = null;
+    moveScratch(p.x, p.y);
+  }
+
+  function onTouchEnd() {
+    const wasDrawing = state.drawing;
+    flushPending();
+    state.drawing = false;
+    state.pending = null;
+    state.last = null;
+    if (wasDrawing) checkProgress(true);
+  }
+
+  function bindInput() {
+    coatCv.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    coatCv.addEventListener('touchstart', onTouchStart, { passive: false });
+    coatCv.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    window.addEventListener('blur', onMouseUp);
+    card.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    albumOpen.addEventListener('click', openAlbum);
+    albumClose.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeAlbum();
+    });
+    albumEl.addEventListener('click', closeAlbum);
+    albumPanel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeAlbum();
+    });
+  }
+
+  /* ================= 主循环 ================= */
+  let lastT = 0;
+  let lastBG = 0;
+
+  function loop(now) {
+    if (!lastT) lastT = now;
+    const dt = Math.min(.05, Math.max(.001, (now - lastT) / 1000));
+    lastT = now;
+
+    if (now - lastBG > 60) {
+      drawBG(now / 1000);
+      lastBG = now;
+    }
+    updateReveal(now);
+    updateParticles(dt);
+    cardRect = coatCv.getBoundingClientRect();
+    renderFX(now);
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= 启动 ================= */
+  function init() {
+    state.index = 0;
+    state.theme = THEMES[0];
+    layoutNow();
+    rebuild();
+    bindInput();
+    initAlbum();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    requestAnimationFrame(loop);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
