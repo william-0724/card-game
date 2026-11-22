@@ -1802,7 +1802,7 @@
     // 底部提示
     ctx.font = '500 ' + Math.max(9, W * .026) + 'px ' + FONT;
     ctx.fillStyle = hexA(th.coatInk, .48);
-    ctx.fillText('按住滑动 · 刮开 60% 有惊喜', cx, H * .9);
+    ctx.fillText('按住滑动 · 刮开 75% 有惊喜', cx, H * .9);
   }
 
   /* ================= 柔和渐变背景 ================= */
@@ -2279,7 +2279,7 @@
     if (!force && now - state.lastCheck < 120) return;
     state.lastCheck = now;
     state.progress = coverage();
-    if (state.progress >= .6) beginReveal();
+    if (state.progress >= .75) beginReveal();
   }
 
   /* ================= 收尾动画与换卡 ================= */
