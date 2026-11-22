@@ -239,7 +239,7 @@
     50% { transform: translateY(-9px); }
   }
   #viewerCard {
-    width: min(300px, 76vw, 52vh);
+    width: min(420px, calc(100vw - 48px), 86vw, 62vh);
     aspect-ratio: .78;
     display: flex; flex-direction: column; align-items: center;
     padding: 5.5% 5.5% 4.5%;
@@ -261,7 +261,7 @@
   }
   .vc-top {
     transform: translateZ(8px);
-    font-size: clamp(8px, 2.6vmin, 10px);
+    font-size: clamp(9px, 2.6vmin, 11px);
     letter-spacing: .12em;
     color: var(--vc-accent, #a2917f);
     opacity: .82;
@@ -289,7 +289,7 @@
   .vc-phrase {
     transform: translateZ(16px);
     max-width: 92%;
-    font-size: clamp(13px, 5vmin, 19px);
+    font-size: clamp(14px, 5.4vmin, 21px);
     font-weight: 600; line-height: 1.5;
     color: var(--vc-ink, #66503f);
     letter-spacing: .02em;
@@ -301,14 +301,14 @@
     padding: 3px 12px;
     border-radius: 999px;
     border: 1px solid var(--vc-border, #dccbb7);
-    font-size: clamp(9px, 2.8vmin, 11px);
+    font-size: clamp(10px, 2.8vmin, 12px);
     font-weight: 700;
     white-space: nowrap;
   }
   .vc-foot {
     transform: translateZ(6px);
     margin-top: auto; padding-top: 3%;
-    font-size: clamp(7.5px, 2.3vmin, 9px);
+    font-size: clamp(8px, 2.3vmin, 10px);
     letter-spacing: .1em;
     color: var(--vc-ink, #66503f);
     opacity: .45;
@@ -322,15 +322,15 @@
     pointer-events: none;
   }
   @media (max-height: 520px) {
-    .vc-phrase { font-size: 14px; }
+    .vc-phrase { font-size: 16px; }
     .vc-art-wrap { width: 54%; margin: 3% auto 4%; }
     .vc-tag { margin-top: 3%; }
   }
   @media (max-height: 420px) {
-    #viewerCard { width: min(240px, 68vw, 58vh); }
+    #viewerCard { width: min(300px, calc(100vw - 48px), 80vw, 64vh); }
     .vc-top { font-size: 8px; }
     .vc-art-wrap { width: 50%; margin: 2% auto 3%; }
-    .vc-phrase { font-size: 13px; }
+    .vc-phrase { font-size: 14px; }
     .vc-tag { margin-top: 2.5%; padding: 2px 10px; font-size: 9px; }
     .vc-foot { font-size: 7px; padding-top: 2%; }
   }
@@ -2679,6 +2679,7 @@
   /* ================= 3D 卡片查看 ================= */
   let viewerOpen = false;
   let vDragging = false, vStartX = 0, vStartY = 0;
+  let viewerDragMoved = false, viewerDragEndedAt = 0;
 
   function paintViewerArt(art) {
     const grid = art.grid || 28;
@@ -2698,6 +2699,8 @@
   function beginViewerDrag(x, y) {
     if (!viewerOpen) return;
     vDragging = true;
+    viewerDragMoved = false;
+    viewerDragEndedAt = 0;
     vStartX = x;
     vStartY = y;
     viewerCard.style.transition = 'none';
@@ -2706,12 +2709,16 @@
 
   function moveViewerDrag(x, y) {
     if (!viewerOpen || !vDragging) return;
-    const xAngle = clamp((x - vStartX) * .18, -30, 30);
-    const yAngle = clamp(-(y - vStartY) * .18, -30, 30);
+    const dx = x - vStartX;
+    const dy = y - vStartY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) viewerDragMoved = true;
+    const xAngle = clamp(dx * .18, -30, 30);
+    const yAngle = clamp(-dy * .18, -30, 30);
     viewerCard.style.transform = 'rotateX(' + yAngle + 'deg) rotateY(' + xAngle + 'deg)';
   }
 
   function resetViewerCard() {
+    if (vDragging) viewerDragEndedAt = performance.now();
     vDragging = false;
     viewerCard.style.transition = 'transform .5s ease';
     viewerCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
@@ -2745,6 +2752,8 @@
     viewerCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
     viewerCard.style.cursor = 'grab';
     vDragging = false;
+    viewerDragMoved = false;
+    viewerDragEndedAt = 0;
     viewerOpen = true;
     viewer.classList.add('open');
     viewer.setAttribute('aria-hidden', 'false');
@@ -2921,11 +2930,12 @@
       beginViewerDrag(e.clientX, e.clientY);
       e.preventDefault();
     });
-    viewerCard.addEventListener('mousemove', function (e) {
-      moveViewerDrag(e.clientX, e.clientY);
+    window.addEventListener('mousemove', function (e) {
+      if (vDragging) moveViewerDrag(e.clientX, e.clientY);
     });
-    viewerCard.addEventListener('mouseup', resetViewerCard);
-    viewerCard.addEventListener('mouseleave', resetViewerCard);
+    window.addEventListener('mouseup', function () {
+      if (vDragging) resetViewerCard();
+    });
     viewerCard.addEventListener('touchstart', function (e) {
       if (!viewerOpen || !e.touches[0]) return;
       beginViewerDrag(e.touches[0].clientX, e.touches[0].clientY);
@@ -2938,7 +2948,12 @@
     viewerCard.addEventListener('touchend', resetViewerCard);
     viewerCard.addEventListener('touchcancel', resetViewerCard);
     viewer.addEventListener('click', function (e) {
-      if (e.target === viewer) closeCardViewer();
+      if (e.target !== viewer) return;
+      if (viewerDragMoved && performance.now() - viewerDragEndedAt < 350) {
+        viewerDragMoved = false;
+        return;
+      }
+      closeCardViewer();
     });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
